@@ -5,8 +5,16 @@ const {
     sendProductCardMessage
 } = require('../services/whatsappService');
 
-const { Category, Product, Order, Customer } = require('../models');
+const {
+    Category,
+    Product,
+    Order,
+    Customer,
+    Branch
+} = require('../models');
+
 const { Op } = require('sequelize');
+
 const sessions = {};
 
 const carts = {};
@@ -44,18 +52,28 @@ const receiveWebhook = async (req, res) => {
             ?.value?.messages?.[0];
 
         if (message) {
+
             const from = message.from;
             const profileName = req.body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || '';
 
-            // Upsert Customer logic for promotional broadcasts
+            // =========================
+            // DATA RECOVERY (Customer & Latest Order)
+            // =========================
+            const customer = await Customer.findOne({ where: { phone: from } });
+            const latestOrder = await Order.findOne({ 
+                where: { customerPhone: from }, 
+                order: [['createdAt', 'DESC']] 
+            });
+
+            // Upsert Customer
             try {
                 await Customer.upsert({
                     phone: from,
-                    name: profileName,
+                    name: profileName || (customer ? customer.name : ''),
                     lastInteraction: new Date()
                 });
-            } catch(e) {
-                console.error("Customer tracking error:", e.message);
+            } catch (e) {
+                console.error('Customer tracking error:', e.message);
             }
 
             let text = '';
@@ -64,7 +82,9 @@ const receiveWebhook = async (req, res) => {
             // TEXT MESSAGE
             // =========================
 
-            if (message.type === 'text') {
+            if (
+                message.type === 'text'
+            ) {
 
                 text =
                     message.text?.body
@@ -109,11 +129,15 @@ const receiveWebhook = async (req, res) => {
             // LOCATION MESSAGE
             // =========================
 
-            else if (message.type === 'location') {
-                const loc = message.location;
-                text = `[LOCATION] map: https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
-                if (loc.name) text += ` | ${loc.name}`;
-                if (loc.address) text += ` | ${loc.address}`;
+            else if (
+                message.type === 'location'
+            ) {
+
+                const loc =
+                    message.location;
+
+                text =
+                    `[LOCATION] https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
             }
 
             console.log('FROM:', from);
@@ -128,27 +152,52 @@ const receiveWebhook = async (req, res) => {
                 text === 'hello' ||
                 text === 'menu'
             ) {
-
                 sessions[from] = {
-                    state: 'HOME'
+                    state: 'HOME',
+                    branchId: customer?.branchId || null
                 };
+
+                const welcomeMsg = customer?.name 
+                    ? `Welcome back, ${customer.name}! 😊` 
+                    : 'Welcome to WStore 🛍️';
+
+                const buttons = [
+                    { id: 'shop', title: 'Shop' },
+                    { id: 'cart', title: 'Cart' },
+                    { id: 'track', title: 'Track Order' }
+                ];
+
+                await sendButtonMessage(from, welcomeMsg, buttons);
+            }
+
+            // =========================
+            // TRACKING COMMAND
+            // =========================
+
+            else if (
+                text === 'track' || 
+                text === 'status'
+            ) {
+                if (!latestOrder) {
+                    return await sendButtonMessage(from, "You haven't placed any orders yet. Start shopping! 🛍️", [{id: 'shop', title: 'Shop Now'}]);
+                }
+
+                const statusEmoji = {
+                    'pending': '⏳',
+                    'shipped': '🚚',
+                    'delivered': '✅'
+                }[latestOrder.status] || '📦';
 
                 await sendButtonMessage(
                     from,
-                    'Welcome to WStore 🛍️',
+                    `📑 *Latest Order Status*
+Order #${latestOrder.id}
+Status: ${latestOrder.status.toUpperCase()} ${statusEmoji}
+Total: ₹${latestOrder.total}
+Placed on: ${new Date(latestOrder.createdAt).toLocaleDateString()}`,
                     [
-                        {
-                            id: 'shop',
-                            title: 'Shop'
-                        },
-                        {
-                            id: 'cart',
-                            title: 'Cart'
-                        },
-                        {
-                            id: 'checkout',
-                            title: 'Checkout'
-                        }
+                        { id: 'menu', title: 'Back to Menu' },
+                        { id: 'shop', title: 'Shop More' }
                     ]
                 );
             }
@@ -160,22 +209,183 @@ const receiveWebhook = async (req, res) => {
             else if (
                 text === 'shop'
             ) {
+                // If already in a category, return to that category's products
+                if (sessions[from]?.categoryId) {
+                    const category = await Category.findByPk(sessions[from].categoryId);
+                    if (category) {
+                        const catProducts = await Product.findAll({
+                            where: { categoryId: category.id, branchId: sessions[from].branchId },
+                            order: [['name', 'ASC']]
+                        });
+                        return await sendListMessage(
+                            from,
+                            `🛍️ ${category.name} Collection`,
+                            'View Products',
+                            [{
+                                title: category.name,
+                                rows: catProducts.map(p => ({
+                                    id: `product_${p.id}`,
+                                    title: p.name.slice(0, 24),
+                                    description: `₹${p.price}`
+                                }))
+                            }]
+                        );
+                    }
+                }
+
+                // If branch is already in session, skip re-selection and show categories
+                if (sessions[from]?.branchId) {
+                    const categories = await Category.findAll({
+                        where: { branchId: sessions[from].branchId },
+                        order: [['name', 'ASC']]
+                    });
+                    return await sendListMessage(
+                        from,
+                        '📂 Browse Categories',
+                        'View Categories',
+                        [{
+                            title: 'Categories',
+                            rows: categories.map(c => ({
+                                id: `category_${c.id}`,
+                                title: c.name.slice(0, 24),
+                                description: c.description || 'View products'
+                            }))
+                        }]
+                    );
+                }
+
+                // Persistent Branch Memory from Database
+                if (customer?.branchId) {
+                    const branch = await Branch.findByPk(customer.branchId);
+                    if (branch) {
+                        return await sendButtonMessage(
+                            from, 
+                            `Continue with *${branch.name}* or choose another? 📍`,
+                            [
+                                { id: `branch_${branch.id}`, title: `Use ${branch.name}` },
+                                { id: 'change_branch', title: 'Change Hub' }
+                            ]
+                        );
+                    }
+                }
 
                 sessions[from] = {
-                    state: 'SELECTING_CATEGORY'
+                    ...sessions[from],
+                    state: 'SELECTING_BRANCH'
                 };
 
-                const categories = await Category.findAll();
-                const buttons = categories.slice(0, 3).map(c => ({
-                    id: c.name.toLowerCase(),
-                    title: c.name.charAt(0).toUpperCase() + c.name.slice(1)
-                }));
-
-                await sendButtonMessage(
+                const branches = await Branch.findAll({ order: [['name', 'ASC']] });
+                await sendListMessage(
                     from,
-                    'Choose Category 👇',
-                    buttons
+                    '📍 Choose your nearest branch',
+                    'View Branches',
+                    [
+                        {
+                            title: 'Branches',
+                            rows: branches.map(branch => ({
+                                id: `branch_${branch.id}`,
+                                title: branch.name.slice(0, 24),
+                                description: branch.address || 'Select branch'
+                            }))
+                        }
+                    ]
                 );
+            }
+
+            else if (
+                text === 'change_branch'
+            ) {
+                sessions[from] = { ...sessions[from], state: 'SELECTING_BRANCH' };
+                const branches = await Branch.findAll({ order: [['name', 'ASC']] });
+                await sendListMessage(
+                    from,
+                    '📍 Choose your nearest branch',
+                    'View Branches',
+                    [
+                        {
+                            title: 'Branches',
+                            rows: branches.map(branch => ({
+                                id: `branch_${branch.id}`,
+                                title: branch.name.slice(0, 24),
+                                description: branch.address || 'Select branch'
+                            }))
+                        }
+                    ]
+                );
+            }
+            
+            // =========================
+            // BRANCH SELECTION
+            // =========================
+
+            else if (
+                text.startsWith('branch_')
+            ) {
+
+                const branchId =
+                    text.replace(
+                        'branch_',
+                        ''
+                    );
+
+                const branch =
+                    await Branch.findByPk(
+                        branchId
+                    );
+
+                if (branch) {
+                    sessions[from] = {
+                        state: 'SELECTING_CATEGORY',
+                        branchId: branch.id
+                    };
+
+                    // Update Customer's branch affinity so they show up in this branch's dashboard
+                    try {
+                        await Customer.update({ branchId: branch.id }, { where: { phone: from } });
+                    } catch (e) {
+                        console.error("Failed to update customer branch:", e.message);
+                    }
+
+                    const categories =
+                        await Category.findAll({
+                            where: {
+                                branchId: branch.id
+                            },
+                            order: [['name', 'ASC']]
+                        });
+
+                    // =========================
+                    // CATEGORY BOTTOM SHEET
+                    // =========================
+
+                    await sendListMessage(
+                        from,
+                        `Welcome to ${branch.name}! 👋
+
+Choose a category below`,
+                        'View Categories',
+                        [
+                            {
+                                title: '📂 Categories',
+
+                                rows:
+                                    categories.map(category => ({
+
+                                        id:
+                                            `category_${category.id}`,
+
+                                        title:
+                                            category.name
+                                                .slice(0, 24),
+
+                                        description:
+                                            category.description ||
+                                            'Browse products'
+                                    }))
+                            }
+                        ]
+                    );
+                }
             }
 
             // =========================
@@ -183,36 +393,66 @@ const receiveWebhook = async (req, res) => {
             // =========================
 
             else if (
-                sessions[from]?.state ===
-                'SELECTING_CATEGORY'
+                text.startsWith('category_')
             ) {
 
-                const category = await Category.findOne({ 
-                    where: { 
-                        name: { [Op.iLike]: text } 
-                    } 
-                });
+                const categoryId =
+                    text.replace(
+                        'category_',
+                        ''
+                    );
+
+                const category =
+                    await Category.findByPk(
+                        categoryId
+                    );
 
                 if (category) {
 
                     sessions[from] = {
-                        state: 'SELECTING_PRODUCT'
+                        ...sessions[from],
+                        state: 'SELECTING_PRODUCT',
+                        categoryId: category.id
                     };
 
-                    const catProducts = await Product.findAll({ where: { categoryId: category.id } });
+                    const catProducts =
+                        await Product.findAll({
+                            where: {
+                                categoryId: category.id,
+                                branchId:
+                                    sessions[from]
+                                        .branchId
+                            },
+                            order: [['name', 'ASC']]
+                        });
+
+                    // =========================
+                    // PRODUCT BOTTOM SHEET
+                    // =========================
 
                     await sendListMessage(
                         from,
-                        `Choose a ${category.name}`,
+                        `🛍️ ${category.name}
+
+Choose a product below`,
                         'View Products',
                         [
                             {
-                                title: `${category.name.charAt(0).toUpperCase() + category.name.slice(1)} Collection`,
+                                title:
+                                    `${category.name} Collection`,
+
                                 rows:
                                     catProducts.map(product => ({
-                                        id: `product_${product.id}`,
-                                        title: product.name.slice(0, 24),
-                                        description: `₹${product.price}`
+
+                                        id:
+                                            `product_${product.id}`,
+
+                                        title:
+                                            product.name
+                                                .slice(0, 24),
+
+                                        description:
+                                            `₹${product.price}`
                                     }))
                             }
                         ]
@@ -236,12 +476,20 @@ const receiveWebhook = async (req, res) => {
                 text.startsWith('product_')
             ) {
 
-                const productId = text.replace('product_', '');
-                const selectedProduct = await Product.findByPk(productId);
+                const productId =
+                    text.replace(
+                        'product_',
+                        ''
+                    );
+
+                const selectedProduct =
+                    await Product.findByPk(
+                        productId
+                    );
 
                 if (selectedProduct) {
-
                     sessions[from] = {
+                        ...sessions[from],
                         state: 'VIEWING_PRODUCT',
                         productId: selectedProduct.id
                     };
@@ -266,107 +514,66 @@ const receiveWebhook = async (req, res) => {
             // =========================
 
             else if (
-                text.startsWith('add_')
+                text.startsWith('add_') || 
+                text.startsWith('buy_')
             ) {
+                const type = text.startsWith('add_') ? 'add' : 'buy';
+                const productId = text.replace('add_', '').replace('buy_', '');
+                const product = await Product.findByPk(productId);
 
-                const productId =
-                    text.replace(
-                        'add_',
-                        ''
-                    );
+                if (product) {
+                    sessions[from] = {
+                        ...sessions[from],
+                        state: 'COLLECTING_QUANTITY',
+                        pendingAction: type,
+                        pendingProductId: product.id
+                    };
 
-                const selectedProduct = await Product.findByPk(productId);
-
-                if (selectedProduct) {
-
-                    // CREATE CART
-
-                    if (!carts[from]) {
-
-                        carts[from] = [];
-                    }
-
-                    // CHECK EXISTING PRODUCT
-
-                    const existingProduct =
-                        carts[from].find(
-                            item =>
-                                item.id ===
-                                selectedProduct.id
-                        );
-
-                    if (existingProduct) {
-
-                        existingProduct.quantity += 1;
-                    }
-                    else {
-
-                        carts[from].push({
-                            id: selectedProduct.id,
-                            name: selectedProduct.name,
-                            price: selectedProduct.price,
-                            quantity: 1
-                        });
-                    }
-
-                    await sendButtonMessage(
-                        from,
-                        `✅ ${selectedProduct.name} added to cart`,
-                        [
-                            {
-                                id: 'shop',
-                                title: 'Shop More'
-                            },
-                            {
-                                id: 'cart',
-                                title: 'View Cart'
-                            },
-                            {
-                                id: 'checkout',
-                                title: 'Checkout'
-                            }
-                        ]
-                    );
+                    await sendTextMessage(from, `🔢 How many *${product.name}* would you like? (Please enter a number)`);
                 }
             }
 
             // =========================
-            // BUY NOW
+            // QUANTITY SELECTION (Handle Number)
             // =========================
 
             else if (
-                text.startsWith('buy_')
+                sessions[from]?.state === 'COLLECTING_QUANTITY'
             ) {
+                if (!isNaN(text)) {
+                    const qty = parseInt(text);
+                    if (qty <= 0) return await sendTextMessage(from, "Please enter a valid quantity (1 or more).");
+                    
+                    const productId = sessions[from].pendingProductId;
+                    const action = sessions[from].pendingAction;
+                    const product = await Product.findByPk(productId);
 
-                const productId =
-                    text.replace(
-                        'buy_',
-                        ''
-                    );
+                    if (product) {
+                        if (action === 'add') {
+                            if (!carts[from]) carts[from] = [];
+                            const existing = carts[from].find(it => it.id === product.id);
+                            if (existing) existing.quantity += qty;
+                            else carts[from].push({ id: product.id, name: product.name, price: product.price, quantity: qty });
 
-                const selectedProduct = await Product.findByPk(productId);
+                            sessions[from] = { ...sessions[from], state: 'SELECTING_PRODUCT' };
 
-                if (selectedProduct) {
-
-                    carts[from] = [
-                        {
-                            id: selectedProduct.id,
-                            name: selectedProduct.name,
-                            price: selectedProduct.price,
-                            quantity: 1
+                            await sendButtonMessage(from, `✅ Added ${qty}x *${product.name}* to cart`, [
+                                { id: 'shop', title: 'Shop More' },
+                                { id: 'cart', title: 'View Cart' },
+                                { id: 'checkout', title: 'Checkout' }
+                            ]);
+                        } else {
+                            carts[from] = [{ id: product.id, name: product.name, price: product.price, quantity: qty }];
+                            sessions[from] = { ...sessions[from], state: 'CHECKOUT_ADDRESS' };
+                            await sendTextMessage(from, `📍 Enter delivery address for ${qty}x ${product.name}`);
                         }
-                    ];
-
-                    sessions[from] = {
-                        state: 'CHECKOUT_ADDRESS'
-                    };
-
-                    await sendTextMessage(
-                        from,
-                        `📍 Enter delivery address for ${selectedProduct.name}`
-                    );
+                    }
+                } else {
+                    await sendTextMessage(from, "❌ Invalid quantity. Please enter a number (e.g., 1, 2, 5).");
                 }
             }
+
+            // Direct purchase block removed as it is now handled by COLLECTING_QUANTITY flow above
 
             // =========================
             // VIEW CART
@@ -462,7 +669,9 @@ ${cartText}
                 else {
 
                     sessions[from] = {
-                        state: 'CHECKOUT_ADDRESS'
+                        ...sessions[from],
+                        state:
+                            'CHECKOUT_ADDRESS'
                     };
 
                     await sendTextMessage(
@@ -495,35 +704,78 @@ ${cartText}
                         item.quantity;
                 });
 
-                sessions[from] = {
-                    state: 'ORDER_CONFIRMED'
-                };
-
                 let savedOrder;
+
                 try {
-                    savedOrder = await Order.create({
-                        customerPhone: from,
-                        address: address,
-                        items: userCart,
-                        total: total,
-                        status: 'pending'
-                    });
-                } catch(e) {
-                    console.error("Order save error:", e);
+
+                    savedOrder =
+                        await Order.create({
+
+                            customerPhone:
+                                from,
+
+                            address,
+
+                            items:
+                                userCart,
+
+                            total,
+
+                            status:
+                                'pending',
+
+                            branchId:
+                                sessions[from]
+                                    ?.branchId
+                        });
+
+                } catch (e) {
+
+                    console.error(
+                        'Order save error:',
+                        e
+                    );
                 }
 
-                // Deduct Inventory Stock
+                // =========================
+                // DEDUCT STOCK
+                // =========================
+
                 if (savedOrder) {
+
                     for (const item of userCart) {
+
                         try {
-                            await Product.decrement('stock', { by: item.quantity, where: { id: item.id } });
-                        } catch(e) {
-                            console.error(`Stock deduction error for ${item.name}:`, e.message);
+
+                            await Product.decrement(
+                                'stock',
+                                {
+                                    by:
+                                        item.quantity,
+
+                                    where: {
+                                        id:
+                                            item.id
+                                    }
+                                }
+                            );
+
+                        } catch (e) {
+
+                            console.error(
+                                `Stock deduction error for ${item.name}:`,
+                                e.message
+                            );
                         }
                     }
                 }
 
                 carts[from] = [];
+
+                sessions[from] = {
+                    state:
+                        'ORDER_CONFIRMED'
+                };
 
                 await sendButtonMessage(
                     from,
@@ -545,28 +797,14 @@ ${address}
                 );
             }
 
-            // =========================
-            // DEFAULT
-            // =========================
-
             else {
-
                 await sendButtonMessage(
                     from,
                     'Choose an option 👇',
                     [
-                        {
-                            id: 'shop',
-                            title: 'Shop'
-                        },
-                        {
-                            id: 'cart',
-                            title: 'Cart'
-                        },
-                        {
-                            id: 'checkout',
-                            title: 'Checkout'
-                        }
+                        { id: 'shop', title: 'Shop' },
+                        { id: 'cart', title: 'Cart' },
+                        { id: 'track', title: 'Track Order' }
                     ]
                 );
             }
@@ -577,7 +815,8 @@ ${address}
     } catch (error) {
 
         console.error(
-            error.response?.data || error.message
+            error.response?.data ||
+            error.message
         );
 
         return res.sendStatus(500);

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { Product, Category, Order, Customer } = require('../models');
+const { Product, Category, Order, Customer, Branch } = require('../models');
 const { sendTextMessage } = require('../services/whatsappService');
 const { Op, fn, col, literal } = require('sequelize');
 
@@ -9,12 +9,31 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_wstore';
 const ADMIN_USER = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin';
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    
+    // 1. Check Superadmin
     if (username === ADMIN_USER && password === ADMIN_PASS) {
-        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
-        return res.json({ token });
+        const token = jwt.sign({ username, role: 'superadmin' }, JWT_SECRET, { expiresIn: '24h' });
+        return res.json({ token, role: 'superadmin' });
     }
+
+    // 2. Check Branch Admin
+    try {
+        const branch = await Branch.findOne({ where: { username, password } });
+        if (branch) {
+            const token = jwt.sign({ 
+                username, 
+                role: 'branch', 
+                branchId: branch.id,
+                branchName: branch.name 
+            }, JWT_SECRET, { expiresIn: '24h' });
+            return res.json({ token, role: 'branch', branchId: branch.id });
+        }
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+
     return res.status(401).json({ error: 'Invalid credentials' });
 });
 
@@ -27,6 +46,13 @@ const authenticateToken = (req, res, next) => {
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.sendStatus(403);
         req.user = user;
+        
+        // Helper to get scoping where clause
+        req.getScope = (existingWhere = {}) => {
+            if (req.user.role === 'superadmin') return existingWhere;
+            return { ...existingWhere, branchId: req.user.branchId };
+        };
+        
         next();
     });
 };
@@ -39,6 +65,7 @@ router.get('/categories', async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { count, rows } = await Category.findAndCountAll({
+        where: req.getScope(),
         limit,
         offset,
         order: [['name', 'ASC']]
@@ -52,7 +79,9 @@ router.get('/categories', async (req, res) => {
     });
 });
 router.post('/categories', async (req, res) => {
-    const item = await Category.create(req.body);
+    const data = { ...req.body };
+    if (req.user.role === 'branch') data.branchId = req.user.branchId;
+    const item = await Category.create(data);
     res.json(item);
 });
 router.put('/categories/:id', async (req, res) => {
@@ -76,6 +105,7 @@ router.get('/products', async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { count, rows } = await Product.findAndCountAll({
+        where: req.getScope(),
         include: [{ model: Category, as: 'category' }],
         limit,
         offset,
@@ -90,7 +120,9 @@ router.get('/products', async (req, res) => {
     });
 });
 router.post('/products', async (req, res) => {
-    const item = await Product.create(req.body);
+    const data = { ...req.body };
+    if (req.user.role === 'branch') data.branchId = req.user.branchId;
+    const item = await Product.create(data);
     res.json(item);
 });
 router.put('/products/:id', async (req, res) => {
@@ -139,6 +171,7 @@ router.get('/orders', async (req, res) => {
         const offset = (page - 1) * limit;
 
         const { count, rows } = await Order.findAndCountAll({
+            where: req.getScope(),
             limit,
             offset,
             order: [['createdAt', 'DESC']]
@@ -192,6 +225,7 @@ router.get('/customers', async (req, res) => {
         const offset = (page - 1) * limit;
 
         const { count, rows } = await Customer.findAndCountAll({
+            where: req.getScope(),
             limit,
             offset,
             order: [['lastInteraction', 'DESC']]
@@ -243,8 +277,9 @@ router.post('/customers/broadcast', async (req, res) => {
 // --- Analytics API ---
 router.get('/analytics', async (req, res) => {
     try {
-        const totalOrders = await Order.count();
+        const totalOrders = await Order.count({ where: req.getScope() });
         const stats = await Order.findAll({
+            where: req.getScope(),
             attributes: [
                 [fn('SUM', col('total')), 'revenue'],
                 [fn('AVG', col('total')), 'aov']
@@ -260,7 +295,7 @@ router.get('/analytics', async (req, res) => {
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
         const trend = await Order.findAll({
-            where: { createdAt: { [Op.gte]: sevenDaysAgo } },
+            where: req.getScope({ createdAt: { [Op.gte]: sevenDaysAgo } }),
             attributes: [
                 [fn('date_trunc', 'day', col('createdAt')), 'date'],
                 [fn('SUM', col('total')), 'dailyRevenue']
@@ -271,9 +306,11 @@ router.get('/analytics', async (req, res) => {
         });
 
         // Top 5 Products
-        // We need to parse 'items' JSON field. In a real heavy app we use associations,
-        // but for this JSONB/ARRAY field we can do a quick manual aggregation since the DB is small.
-        const allOrders = await Order.findAll({ attributes: ['items'], raw: true });
+        const allOrders = await Order.findAll({ 
+            where: req.getScope(),
+            attributes: ['items'], 
+            raw: true 
+        });
         const productCounts = {};
         allOrders.forEach(o => {
             const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
@@ -290,13 +327,14 @@ router.get('/analytics', async (req, res) => {
 
         // Low Stock Items (< 10)
         const lowStock = await Product.findAll({
-            where: { stock: { [Op.lte]: 10 } },
+            where: req.getScope({ stock: { [Op.lte]: 10 } }),
             attributes: ['id', 'name', 'stock'],
             raw: true
         });
 
         // Recent Orders (Last 5)
         const recentOrders = await Order.findAll({
+            where: req.getScope(),
             limit: 5,
             order: [['createdAt', 'DESC']],
             raw: true
@@ -304,6 +342,7 @@ router.get('/analytics', async (req, res) => {
 
         // Order Status Distribution
         const statusCounts = await Order.findAll({
+            where: req.getScope(),
             attributes: ['status', [fn('COUNT', col('id')), 'count']],
             group: ['status'],
             raw: true
@@ -311,6 +350,7 @@ router.get('/analytics', async (req, res) => {
 
         // 1. Customer Retention (Repeat Rate)
         const customerOrders = await Order.findAll({
+            where: req.getScope(),
             attributes: ['customerPhone', [fn('COUNT', col('id')), 'orderCount']],
             group: ['customerPhone'],
             raw: true
@@ -320,11 +360,12 @@ router.get('/analytics', async (req, res) => {
         const retentionRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0;
 
         // 2. Revenue by Category
-        // We join Orders and Products is complex with JSONB in Sequelize without raw queries,
-        // but since we have totalOrders anyway, let's aggregate manually or via a clean join if possible.
-        // For simplicity with the current JSONB structure:
         const categoryRevenue = {};
-        const ordersForCat = await Order.findAll({ attributes: ['items', 'total'], raw: true });
+        const ordersForCat = await Order.findAll({ 
+            where: req.getScope(),
+            attributes: ['items', 'total'], 
+            raw: true 
+        });
         ordersForCat.forEach(o => {
             const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
             items.forEach(it => {
@@ -335,6 +376,7 @@ router.get('/analytics', async (req, res) => {
 
         // 3. Hourly Sales Trend
         const hourlyStats = await Order.findAll({
+            where: req.getScope(),
             attributes: [
                 [fn('date_part', 'hour', col('createdAt')), 'hour'],
                 [fn('COUNT', col('id')), 'count']
@@ -367,6 +409,28 @@ router.get('/analytics', async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// --- Branches Management (Superadmin Only) ---
+router.get('/branches', async (req, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Access denied' });
+    const branches = await Branch.findAll({ order: [['name', 'ASC']] });
+    res.json(branches);
+});
+
+router.post('/branches', async (req, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Access denied' });
+    const branch = await Branch.create(req.body);
+    res.json(branch);
+});
+
+router.delete('/branches/:id', async (req, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Access denied' });
+    const branch = await Branch.findByPk(req.params.id);
+    if (branch) {
+        await branch.destroy();
+        res.json({ success: true });
+    } else res.status(404).send();
 });
 
 module.exports = router;

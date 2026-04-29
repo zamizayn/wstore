@@ -21,6 +21,9 @@ export default function Login() {
             const data = await res.json();
             if (res.ok && data.token) {
                 localStorage.setItem('adminToken', data.token);
+                localStorage.setItem('adminRole', data.role);
+                localStorage.setItem('branchId', data.branchId || '');
+                localStorage.setItem('branchName', data.branchName || 'Superadmin');
                 navigate('/');
             } else {
                 setError(data.error || 'Login failed');

@@ -10,7 +10,10 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      Order.belongsTo(models.Branch, {
+        foreignKey: 'branchId',
+        as: 'branch'
+      });
     }
   }
   Order.init({
@@ -18,7 +21,8 @@ module.exports = (sequelize, DataTypes) => {
     address: DataTypes.TEXT,
     items: DataTypes.JSONB,
     total: DataTypes.FLOAT,
-    status: DataTypes.STRING
+    status: DataTypes.STRING,
+    branchId: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Order',

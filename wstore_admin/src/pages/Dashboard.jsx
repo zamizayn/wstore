@@ -43,10 +43,15 @@ export default function Dashboard() {
 
     if (!analytics) return <div className="loading-content">Loading Intelligence...</div>;
 
+    const branchName = localStorage.getItem('branchName');
+
     return (
         <>
             <header className="top-header">
-                <h1>Business Overview</h1>
+                <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                    <h1>Business Overview</h1>
+                    <span className="badge" style={{background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 'bold'}}>{branchName}</span>
+                </div>
             </header>
 
             <div className="content-view active">

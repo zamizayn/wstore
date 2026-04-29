@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PackageOpen, Plus, User, MapPin, Trash2, IndianRupee, Copy, Check } from 'lucide-react';
+import { PackageOpen, Plus, User, MapPin, Trash2, IndianRupee, Copy, Check, Eye } from 'lucide-react';
 import Pagination from '../components/Pagination';
 
 export default function Orders() {
@@ -9,7 +9,9 @@ export default function Orders() {
     const [copiedId, setCopiedId] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [addressModalOpen, setAddressModalOpen] = useState(false);
+    const [viewModalOpen, setViewModalOpen] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState('');
+    const [viewingOrder, setViewingOrder] = useState(null);
     const [products, setProducts] = useState([]);
     const [formData, setFormData] = useState({
         customerPhone: '',
@@ -47,9 +49,7 @@ export default function Orders() {
         fetchOrders(newPage);
     };
 
-    const toggleStatus = async (id, currentStatus) => {
-        const newStatus = currentStatus === 'pending' ? 'shipped' : currentStatus === 'shipped' ? 'delivered' : 'pending';
-
+    const updateStatus = async (id, newStatus) => {
         await fetch(`/api/admin/orders/${id}/status`, {
             method: 'PUT',
             headers: {
@@ -154,7 +154,7 @@ export default function Orders() {
                                 <th>Total</th>
                                 <th>Date</th>
                                 <th>Status</th>
-                                <th>Action</th>
+                                <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -191,10 +191,25 @@ export default function Orders() {
                                     <td>₹{order.total}</td>
                                     <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                                     <td>
-                                        <span className={`badge ${order.status}`}>{order.status}</span>
+                                        <select 
+                                            className={`status-select-inline ${order.status}`}
+                                            value={order.status}
+                                            onChange={(e) => updateStatus(order.id, e.target.value)}
+                                        >
+                                            <option value="pending">Pending</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
                                     </td>
-                                    <td>
-                                        <button className="action-btn edit" onClick={() => toggleStatus(order.id, order.status)}>Toggle Status</button>
+                                    <td style={{ textAlign: 'right' }}>
+                                        <button 
+                                            className="action-btn edit" 
+                                            onClick={() => { setViewingOrder(order); setViewModalOpen(true); }}
+                                            title="View Details"
+                                        >
+                                            <Eye size={18} />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -294,6 +309,75 @@ export default function Orders() {
                         </div>
                         <div className="modal-actions" style={{marginTop: '24px'}}>
                             <button className="btn-primary w-full" onClick={() => setAddressModalOpen(false)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {viewModalOpen && viewingOrder && (
+                <div className="modal-overlay active">
+                    <div className="modal" style={{maxWidth: '650px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
+                            <h3 style={{margin: 0}}>Order Details #{viewingOrder.id}</h3>
+                            <span className={`badge ${viewingOrder.status}`}>{viewingOrder.status.toUpperCase()}</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
+                            <div className="detail-group">
+                                <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px'}}>Customer</label>
+                                <div style={{fontWeight: 600}}>{viewingOrder.customerName || 'Walk-in Customer'}</div>
+                                <div style={{fontSize: '13px', color: 'var(--text-muted)'}}>{viewingOrder.customerPhone}</div>
+                            </div>
+                            <div className="detail-group">
+                                <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px'}}>Date</label>
+                                <div style={{fontWeight: 600}}>{new Date(viewingOrder.createdAt).toLocaleString()}</div>
+                            </div>
+                        </div>
+
+                        <div className="detail-group" style={{ marginBottom: '30px' }}>
+                            <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px'}}>Delivery Address</label>
+                            <div style={{ 
+                                padding: '12px', 
+                                background: 'rgba(0,0,0,0.02)', 
+                                borderRadius: '12px', 
+                                fontSize: '14px',
+                                border: '1px solid var(--border)' 
+                            }}>{viewingOrder.address}</div>
+                        </div>
+
+                        <div className="detail-group">
+                            <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '8px'}}>Items Breakdown</label>
+                            <div className="table-container" style={{boxShadow: 'none', border: '1px solid var(--border)'}}>
+                                <table style={{fontSize: '14px'}}>
+                                    <thead>
+                                        <tr style={{background: 'rgba(0,0,0,0.02)'}}>
+                                            <th style={{padding: '10px 16px'}}>Product</th>
+                                            <th style={{padding: '10px 16px', textAlign: 'center'}}>Qty</th>
+                                            <th style={{padding: '10px 16px', textAlign: 'right'}}>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {viewingOrder.items.map((item, idx) => (
+                                            <tr key={idx}>
+                                                <td style={{padding: '10px 16px'}}>{item.name}</td>
+                                                <td style={{padding: '10px 16px', textAlign: 'center'}}>x{item.quantity}</td>
+                                                <td style={{padding: '10px 16px', textAlign: 'right'}}>₹{item.price * item.quantity}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '30px', padding: '20px 0', borderTop: '2px dashed var(--border)' }}>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Grand Total</div>
+                                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--accent)' }}>₹{viewingOrder.total}</div>
+                            </div>
+                        </div>
+
+                        <div className="modal-actions">
+                            <button className="btn-primary w-full" onClick={() => setViewModalOpen(false)}>Close</button>
                         </div>
                     </div>
                 </div>

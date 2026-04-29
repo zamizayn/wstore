@@ -14,10 +14,15 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'categoryId',
         as: 'products'
       });
+      Category.belongsTo(models.Branch, {
+        foreignKey: 'branchId',
+        as: 'branch'
+      });
     }
   }
   Category.init({
-    name: DataTypes.STRING
+    name: DataTypes.STRING,
+    branchId: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Category',
