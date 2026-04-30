@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, ShoppingCart, Users, TrendingUp, IndianRupee, Star, Clock, CheckCircle, Truck, AlertCircle, PieChart as PieIcon, BarChart as BarIcon } from 'lucide-react';
+import { ShoppingBag, ShoppingCart, Users, TrendingUp, IndianRupee, Star, Clock, CheckCircle, Truck, AlertCircle, PieChart as PieIcon, BarChart as BarIcon, Save, Key, Phone, Settings2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
@@ -8,6 +8,8 @@ export default function Dashboard() {
     const [analytics, setAnalytics] = useState(null);
     const [tenant, setTenant] = useState(null);
     const [stats, setStats] = useState({ categories: 0, products: 0 });
+    const [configForm, setConfigForm] = useState({ wabaId: '', phoneNumberId: '', whatsappToken: '' });
+    const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
     const navigate = useNavigate();
 
     const fetchDashboardData = async () => {
@@ -39,11 +41,41 @@ export default function Dashboard() {
                 if (tRes.ok) {
                     const tData = await tRes.json();
                     setTenant(tData);
+                    setConfigForm({ 
+                        wabaId: tData.wabaId || '', 
+                        phoneNumberId: tData.phoneNumberId || '', 
+                        whatsappToken: tData.whatsappToken || '' 
+                    });
                 }
             }
 
         } catch (e) {
             console.error(e);
+        }
+    };
+
+    const handleUpdateConfig = async (e) => {
+        e.preventDefault();
+        setIsUpdatingConfig(true);
+        try {
+            const tId = tenant?.id;
+            const res = await fetch(`${API_ENDPOINTS.TENANTS}/${tId}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(configForm)
+            });
+            if (res.ok) {
+                alert('WhatsApp configuration updated successfully!');
+                const updated = await res.json();
+                setTenant(updated);
+            } else {
+                const err = await res.json();
+                alert('Error: ' + (err.error || 'Failed to update configuration'));
+            }
+        } catch (err) {
+            alert('Error updating configuration.');
+        } finally {
+            setIsUpdatingConfig(false);
         }
     };
 
@@ -100,6 +132,36 @@ export default function Dashboard() {
                         >
                             Enable Now
                         </button>
+                    </div>
+                )}
+
+                {localStorage.getItem('adminRole') === 'tenant' && tenant && (
+                    <div className="whatsapp-config-panel" style={{ background: '#fff', padding: '24px', borderRadius: '16px', marginBottom: '32px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px' }}>
+                                <div style={{ background: 'var(--accent-light)', padding: '8px', borderRadius: '8px', display: 'flex' }}>
+                                    <Settings2 size={18} className="text-accent" />
+                                </div>
+                                WhatsApp Integration Settings
+                            </h3>
+                        </div>
+                        <form onSubmit={handleUpdateConfig} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end' }}>
+                            <div className="input-group" style={{ marginBottom: 0 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Settings2 size={14}/> WABA ID</label>
+                                <input type="text" placeholder="109283..." value={configForm.wabaId} onChange={e => setConfigForm({...configForm, wabaId: e.target.value})} style={{ padding: '10px 14px' }} />
+                            </div>
+                            <div className="input-group" style={{ marginBottom: 0 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Phone size={14}/> Phone Number ID</label>
+                                <input type="text" placeholder="Phone ID..." value={configForm.phoneNumberId} onChange={e => setConfigForm({...configForm, phoneNumberId: e.target.value})} style={{ padding: '10px 14px' }} />
+                            </div>
+                            <div className="input-group" style={{ marginBottom: 0 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Key size={14}/> Access Token</label>
+                                <input type="password" placeholder="System User Token..." value={configForm.whatsappToken} onChange={e => setConfigForm({...configForm, whatsappToken: e.target.value})} style={{ padding: '10px 14px' }} />
+                            </div>
+                            <button type="submit" className="btn-primary" disabled={isUpdatingConfig} style={{ height: '42px', padding: '0 24px', whiteSpace: 'nowrap' }}>
+                                {isUpdatingConfig ? 'Saving...' : <><Save size={16}/> Save Updates</>}
+                            </button>
+                        </form>
                     </div>
                 )}
 

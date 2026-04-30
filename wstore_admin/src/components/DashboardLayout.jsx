@@ -51,7 +51,7 @@ export default function DashboardLayout() {
                             <MapPin size={12} /> Active Hub
                         </div>
                         <div className="hub-selector-wrapper">
-                            <button 
+                            <button
                                 className={`hub-selector-trigger ${isHubOpen ? 'active' : ''}`}
                                 onClick={() => setIsHubOpen(!isHubOpen)}
                             >
@@ -66,7 +66,7 @@ export default function DashboardLayout() {
                                 <>
                                     <div className="hub-menu-overlay" onClick={() => setIsHubOpen(false)}></div>
                                     <div className="hub-options-menu animate-slide-down">
-                                        <div 
+                                        <div
                                             className={`hub-option ${!selectedBranchId ? 'current' : ''}`}
                                             onClick={() => {
                                                 handleBranchChange({ target: { value: '' } });
@@ -78,8 +78,8 @@ export default function DashboardLayout() {
                                         </div>
                                         <div className="menu-divider"></div>
                                         {branches.map(b => (
-                                            <div 
-                                                key={b.id} 
+                                            <div
+                                                key={b.id}
                                                 className={`hub-option ${selectedBranchId === b.id ? 'current' : ''}`}
                                                 onClick={() => {
                                                     handleBranchChange({ target: { value: b.id } });
