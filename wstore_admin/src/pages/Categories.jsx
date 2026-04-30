@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Trash2, Plus, Type } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function Categories() {
     const [categories, setCategories] = useState([]);
@@ -11,10 +12,11 @@ export default function Categories() {
     const navigate = useNavigate();
 
     const fetchCategories = async (page = 1) => {
-        const res = await fetch(`/api/admin/categories?page=${page}&limit=10`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const res = await fetch(`${API_ENDPOINTS.CATEGORIES}?page=${page}&limit=10&branchId=${branchId}`, {
+            headers: getHeaders()
         });
-        if(res.status === 401) return navigate('/login');
+        if (res.status === 401) return navigate('/login');
         const result = await res.json();
         setCategories(result.data);
         setPagination({ page: result.page, totalPages: result.totalPages });
@@ -28,27 +30,28 @@ export default function Categories() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const url = formData.id ? `/api/admin/categories/${formData.id}` : '/api/admin/categories';
+        const url = formData.id ? `${API_ENDPOINTS.CATEGORIES}/${formData.id}` : API_ENDPOINTS.CATEGORIES;
         const method = formData.id ? 'PUT' : 'POST';
-        
+
+        const body = { name: formData.name };
+        const branchId = localStorage.getItem('selectedBranchId');
+        if (!formData.id && branchId) body.branchId = branchId;
+
         await fetch(url, {
             method,
-            headers: { 
-                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ name: formData.name })
+            headers: getHeaders(),
+            body: JSON.stringify(body)
         });
-        
+
         setModalOpen(false);
         fetchCategories();
     };
 
     const handleDelete = async (id) => {
-        if(confirm('Delete this category?')) {
-            await fetch(`/api/admin/categories/${id}`, {
+        if (confirm('Delete this category?')) {
+            await fetch(`${API_ENDPOINTS.CATEGORIES}/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+                headers: getHeaders()
             });
             fetchCategories();
         }
@@ -61,7 +64,7 @@ export default function Categories() {
             </header>
             <div className="content-view active">
                 <div className="action-bar">
-                    <button className="btn-primary" onClick={() => { setFormData({ id: null, name: '' }); setModalOpen(true); }}><Plus size={18}/> Add Category</button>
+                    <button className="btn-primary" onClick={() => { setFormData({ id: null, name: '' }); setModalOpen(true); }}><Plus size={18} /> Add Category</button>
                 </div>
                 <div className="table-container">
                     <table>
@@ -78,18 +81,18 @@ export default function Categories() {
                                     <td>#{cat.id}</td>
                                     <td>{cat.name}</td>
                                     <td>
-                                        <button className="action-btn edit" onClick={() => { setFormData({id: cat.id, name: cat.name}); setModalOpen(true); }}><Edit2 size={16}/> Edit</button>
-                                        <button className="action-btn delete" onClick={() => handleDelete(cat.id)}><Trash2 size={16}/> Delete</button>
+                                        <button className="action-btn edit" onClick={() => { setFormData({ id: cat.id, name: cat.name }); setModalOpen(true); }}><Edit2 size={16} /> Edit</button>
+                                        <button className="action-btn delete" onClick={() => handleDelete(cat.id)}><Trash2 size={16} /> Delete</button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                <Pagination 
-                    currentPage={pagination.page} 
-                    totalPages={pagination.totalPages} 
-                    onPageChange={handlePageChange} 
+                <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.totalPages}
+                    onPageChange={handlePageChange}
                 />
             </div>
 
@@ -102,7 +105,7 @@ export default function Categories() {
                                 <label>Name</label>
                                 <div className="input-wrapper">
                                     <Type className="input-icon" size={18} />
-                                    <input type="text" placeholder="Enter category name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                                    <input type="text" placeholder="Enter category name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
                                 </div>
                             </div>
                             <div className="modal-actions">

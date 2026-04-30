@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, Users, CheckSquare, Square, MessageSquare, History, ShoppingBag, X } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function Customers() {
     const [customers, setCustomers] = useState([]);
@@ -16,8 +17,9 @@ export default function Customers() {
     const navigate = useNavigate();
 
     const fetchCustomers = async (page = 1) => {
-        const res = await fetch(`/api/admin/customers?page=${page}&limit=10`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const res = await fetch(`${API_ENDPOINTS.CUSTOMERS}?page=${page}&limit=10&branchId=${branchId}`, {
+            headers: getHeaders()
         });
         if (res.status === 401) return navigate('/login');
         const result = await res.json();
@@ -26,8 +28,8 @@ export default function Customers() {
     };
 
     const fetchHistory = async (customer) => {
-        const res = await fetch(`/api/admin/customers/${customer.phone}/orders`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        const res = await fetch(`${API_ENDPOINTS.CUSTOMERS}/${customer.phone}/orders`, {
+            headers: getHeaders()
         });
         const data = await res.json();
         setHistoryOrders(data);
@@ -59,12 +61,9 @@ export default function Customers() {
         setSending(true);
 
         try {
-            const res = await fetch('/api/admin/customers/broadcast', {
+            const res = await fetch(API_ENDPOINTS.BROADCAST, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json'
-                },
+                headers: getHeaders(),
                 body: JSON.stringify({ phones: selectedPhones, message: broadcastMsg })
             });
             const result = await res.json();

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PackageOpen, Plus, User, MapPin, Trash2, IndianRupee, Copy, Check, Eye } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function Orders() {
     const [orders, setOrders] = useState([]);
@@ -23,8 +24,9 @@ export default function Orders() {
     const navigate = useNavigate();
 
     const fetchOrders = async (page = 1) => {
-        const res = await fetch(`/api/admin/orders?page=${page}&limit=10`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const res = await fetch(`${API_ENDPOINTS.ORDERS}?page=${page}&limit=10&branchId=${branchId}`, {
+            headers: getHeaders()
         });
         if (res.status === 401) return navigate('/login');
         const result = await res.json();
@@ -33,15 +35,16 @@ export default function Orders() {
     };
 
     const fetchProducts = async () => {
-        const res = await fetch('/api/admin/products?limit=100', {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const res = await fetch(`${API_ENDPOINTS.PRODUCTS}?limit=100&branchId=${branchId}`, {
+            headers: getHeaders()
         });
         const result = await res.json();
         setProducts(result.data || result);
     };
 
-    useEffect(() => { 
-        fetchOrders(); 
+    useEffect(() => {
+        fetchOrders();
         fetchProducts();
     }, []);
 
@@ -50,12 +53,9 @@ export default function Orders() {
     };
 
     const updateStatus = async (id, newStatus) => {
-        await fetch(`/api/admin/orders/${id}/status`, {
+        await fetch(`${API_ENDPOINTS.ORDERS}/${id}/status`, {
             method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json'
-            },
+            headers: getHeaders(),
             body: JSON.stringify({ status: newStatus })
         });
         fetchOrders(pagination.page);
@@ -64,7 +64,7 @@ export default function Orders() {
     const addItem = (productId) => {
         const prod = products.find(p => p.id === parseInt(productId));
         if (!prod) return;
-        
+
         const existing = formData.items.find(item => item.id === prod.id);
         if (existing) {
             setFormData({
@@ -74,12 +74,12 @@ export default function Orders() {
         } else {
             setFormData({
                 ...formData,
-                items: [...formData.items, { 
-                    id: prod.id, 
-                    name: prod.name, 
-                    price: prod.price, 
+                items: [...formData.items, {
+                    id: prod.id,
+                    name: prod.name,
+                    price: prod.price,
                     quantity: 1,
-                    categoryName: prod.category?.name || 'Uncategorized' 
+                    categoryName: prod.category?.name || 'Uncategorized'
                 }]
             });
         }
@@ -114,12 +114,9 @@ export default function Orders() {
         if (formData.items.length === 0) return alert('Please add at least one product');
 
         const total = calculateTotal();
-        await fetch('/api/admin/orders', {
+        await fetch(API_ENDPOINTS.ORDERS, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json'
-            },
+            headers: getHeaders(),
             body: JSON.stringify({ ...formData, total })
         });
 
@@ -142,7 +139,7 @@ export default function Orders() {
             </header>
             <div className="content-view active">
                 <div className="action-bar">
-                    <button className="btn-primary" onClick={() => setModalOpen(true)}><Plus size={18}/> Create Manual Order</button>
+                    <button className="btn-primary" onClick={() => setModalOpen(true)}><Plus size={18} /> Create Manual Order</button>
                 </div>
                 <div className="table-container">
                     <table>
@@ -170,15 +167,15 @@ export default function Orders() {
                                     <td>{order.customerPhone}</td>
                                     <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span 
-                                                style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--accent)' }} 
+                                            <span
+                                                style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--accent)' }}
                                                 onClick={() => { setSelectedAddress(order.address); setAddressModalOpen(true); }}
                                             >
                                                 {String(order.address).slice(0, 30)}...
                                             </span>
                                             {String(order.address).includes('map:') && (
-                                                <button 
-                                                    className="action-btn" 
+                                                <button
+                                                    className="action-btn"
                                                     style={{ padding: '4px', margin: 0, background: 'transparent', border: 'none' }}
                                                     onClick={() => copyToClipboard(order.address, order.id)}
                                                     title="Copy Map Link"
@@ -191,7 +188,7 @@ export default function Orders() {
                                     <td>₹{order.total}</td>
                                     <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                                     <td>
-                                        <select 
+                                        <select
                                             className={`status-select-inline ${order.status}`}
                                             value={order.status}
                                             onChange={(e) => updateStatus(order.id, e.target.value)}
@@ -203,8 +200,8 @@ export default function Orders() {
                                         </select>
                                     </td>
                                     <td style={{ textAlign: 'right' }}>
-                                        <button 
-                                            className="action-btn edit" 
+                                        <button
+                                            className="action-btn edit"
                                             onClick={() => { setViewingOrder(order); setViewModalOpen(true); }}
                                             title="View Details"
                                         >
@@ -216,43 +213,43 @@ export default function Orders() {
                         </tbody>
                     </table>
                 </div>
-                <Pagination 
-                    currentPage={pagination.page} 
-                    totalPages={pagination.totalPages} 
-                    onPageChange={handlePageChange} 
+                <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.totalPages}
+                    onPageChange={handlePageChange}
                 />
             </div>
 
             {modalOpen && (
                 <div className="modal-overlay active">
-                    <div className="modal" style={{maxWidth: '600px'}}>
+                    <div className="modal" style={{ maxWidth: '600px' }}>
                         <h3>Create Manual Order</h3>
                         <form onSubmit={handleSubmit}>
                             <div className="input-group has-icon">
                                 <label>Customer Phone</label>
                                 <div className="input-wrapper">
                                     <User className="input-icon" size={18} />
-                                    <input type="text" placeholder="e.g. 919876543210" value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} required />
+                                    <input type="text" placeholder="e.g. 919876543210" value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} required />
                                 </div>
                             </div>
                             <div className="input-group has-icon">
                                 <label>Customer Name</label>
                                 <div className="input-wrapper">
                                     <User className="input-icon" size={18} />
-                                    <input type="text" placeholder="Optional name..." value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} />
+                                    <input type="text" placeholder="Optional name..." value={formData.customerName} onChange={e => setFormData({ ...formData, customerName: e.target.value })} />
                                 </div>
                             </div>
                             <div className="input-group has-icon">
                                 <label>Delivery Address</label>
                                 <div className="input-wrapper">
                                     <MapPin className="input-icon align-top" size={18} />
-                                    <textarea rows="2" placeholder="Full delivery address..." value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} required />
+                                    <textarea rows="2" placeholder="Full delivery address..." value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} required />
                                 </div>
                             </div>
 
                             <div className="input-group">
                                 <label>Add Products</label>
-                                <select onChange={(e) => { if(e.target.value) addItem(e.target.value); e.target.value = ''; }}>
+                                <select onChange={(e) => { if (e.target.value) addItem(e.target.value); e.target.value = ''; }}>
                                     <option value="">Select a product to add...</option>
                                     {products.map(p => <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>)}
                                 </select>
@@ -269,7 +266,7 @@ export default function Orders() {
                                             <button type="button" className="action-btn" onClick={() => updateQty(item.id, -1)}>-</button>
                                             <input type="text" readOnly className="qty-input" value={item.quantity} />
                                             <button type="button" className="action-btn" onClick={() => updateQty(item.id, 1)}>+</button>
-                                            <button type="button" className="action-btn delete" onClick={() => removeItem(item.id)}><Trash2 size={14}/></button>
+                                            <button type="button" className="action-btn delete" onClick={() => removeItem(item.id)}><Trash2 size={14} /></button>
                                         </div>
                                     </div>
                                 ))}
@@ -282,7 +279,7 @@ export default function Orders() {
 
                             <div className="modal-actions">
                                 <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary"><IndianRupee size={18}/> Place Order</button>
+                                <button type="submit" className="btn-primary"><IndianRupee size={18} /> Place Order</button>
                             </div>
                         </form>
                     </div>
@@ -291,23 +288,23 @@ export default function Orders() {
 
             {addressModalOpen && (
                 <div className="modal-overlay active">
-                    <div className="modal" style={{maxWidth: '450px'}}>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px'}}>
+                    <div className="modal" style={{ maxWidth: '450px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                             <MapPin size={24} className="text-accent" />
-                            <h3 style={{margin: 0}}>Full Delivery Address</h3>
+                            <h3 style={{ margin: 0 }}>Full Delivery Address</h3>
                         </div>
                         <div style={{
-                            padding: '20px', 
-                            background: 'rgba(0,0,0,0.02)', 
-                            borderRadius: '12px', 
-                            lineHeight: '1.6', 
+                            padding: '20px',
+                            background: 'rgba(0,0,0,0.02)',
+                            borderRadius: '12px',
+                            lineHeight: '1.6',
                             fontSize: '15px',
                             border: '1px solid var(--border)',
                             whiteSpace: 'pre-wrap'
                         }}>
                             {selectedAddress}
                         </div>
-                        <div className="modal-actions" style={{marginTop: '24px'}}>
+                        <div className="modal-actions" style={{ marginTop: '24px' }}>
                             <button className="btn-primary w-full" onClick={() => setAddressModalOpen(false)}>Close</button>
                         </div>
                     </div>
@@ -316,52 +313,52 @@ export default function Orders() {
 
             {viewModalOpen && viewingOrder && (
                 <div className="modal-overlay active">
-                    <div className="modal" style={{maxWidth: '650px'}}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
-                            <h3 style={{margin: 0}}>Order Details #{viewingOrder.id}</h3>
+                    <div className="modal" style={{ maxWidth: '650px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h3 style={{ margin: 0 }}>Order Details #{viewingOrder.id}</h3>
                             <span className={`badge ${viewingOrder.status}`}>{viewingOrder.status.toUpperCase()}</span>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
                             <div className="detail-group">
-                                <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px'}}>Customer</label>
-                                <div style={{fontWeight: 600}}>{viewingOrder.customerName || 'Walk-in Customer'}</div>
-                                <div style={{fontSize: '13px', color: 'var(--text-muted)'}}>{viewingOrder.customerPhone}</div>
+                                <label style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Customer</label>
+                                <div style={{ fontWeight: 600 }}>{viewingOrder.customerName || 'Walk-in Customer'}</div>
+                                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{viewingOrder.customerPhone}</div>
                             </div>
                             <div className="detail-group">
-                                <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px'}}>Date</label>
-                                <div style={{fontWeight: 600}}>{new Date(viewingOrder.createdAt).toLocaleString()}</div>
+                                <label style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Date</label>
+                                <div style={{ fontWeight: 600 }}>{new Date(viewingOrder.createdAt).toLocaleString()}</div>
                             </div>
                         </div>
 
                         <div className="detail-group" style={{ marginBottom: '30px' }}>
-                            <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px'}}>Delivery Address</label>
-                            <div style={{ 
-                                padding: '12px', 
-                                background: 'rgba(0,0,0,0.02)', 
-                                borderRadius: '12px', 
+                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Delivery Address</label>
+                            <div style={{
+                                padding: '12px',
+                                background: 'rgba(0,0,0,0.02)',
+                                borderRadius: '12px',
                                 fontSize: '14px',
-                                border: '1px solid var(--border)' 
+                                border: '1px solid var(--border)'
                             }}>{viewingOrder.address}</div>
                         </div>
 
                         <div className="detail-group">
-                            <label style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '8px'}}>Items Breakdown</label>
-                            <div className="table-container" style={{boxShadow: 'none', border: '1px solid var(--border)'}}>
-                                <table style={{fontSize: '14px'}}>
+                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Items Breakdown</label>
+                            <div className="table-container" style={{ boxShadow: 'none', border: '1px solid var(--border)' }}>
+                                <table style={{ fontSize: '14px' }}>
                                     <thead>
-                                        <tr style={{background: 'rgba(0,0,0,0.02)'}}>
-                                            <th style={{padding: '10px 16px'}}>Product</th>
-                                            <th style={{padding: '10px 16px', textAlign: 'center'}}>Qty</th>
-                                            <th style={{padding: '10px 16px', textAlign: 'right'}}>Total</th>
+                                        <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+                                            <th style={{ padding: '10px 16px' }}>Product</th>
+                                            <th style={{ padding: '10px 16px', textAlign: 'center' }}>Qty</th>
+                                            <th style={{ padding: '10px 16px', textAlign: 'right' }}>Total</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {viewingOrder.items.map((item, idx) => (
                                             <tr key={idx}>
-                                                <td style={{padding: '10px 16px'}}>{item.name}</td>
-                                                <td style={{padding: '10px 16px', textAlign: 'center'}}>x{item.quantity}</td>
-                                                <td style={{padding: '10px 16px', textAlign: 'right'}}>₹{item.price * item.quantity}</td>
+                                                <td style={{ padding: '10px 16px' }}>{item.name}</td>
+                                                <td style={{ padding: '10px 16px', textAlign: 'center' }}>x{item.quantity}</td>
+                                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>₹{item.price * item.quantity}</td>
                                             </tr>
                                         ))}
                                     </tbody>

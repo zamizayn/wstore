@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Trash2, Plus, Type, IndianRupee, AlignLeft, Image as ImageIcon, ListFilter } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function Products() {
     const [products, setProducts] = useState([]);
@@ -12,8 +13,8 @@ export default function Products() {
     const navigate = useNavigate();
 
     const fetchProducts = async (page = 1) => {
-        const headers = { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` };
-        const res = await fetch(`/api/admin/products?page=${page}&limit=10`, { headers });
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const res = await fetch(`${API_ENDPOINTS.PRODUCTS}?page=${page}&limit=10&branchId=${branchId}`, { headers: getHeaders() });
         if (res.status === 401) return navigate('/login');
         const result = await res.json();
         setProducts(result.data);
@@ -21,8 +22,8 @@ export default function Products() {
     };
 
     const fetchCategories = async () => {
-        const headers = { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` };
-        const res = await fetch('/api/admin/categories', { headers });
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const res = await fetch(`${API_ENDPOINTS.CATEGORIES}?branchId=${branchId}`, { headers: getHeaders() });
         const data = await res.json();
         setCategories(data.data || data); // Handle both formats
     };
@@ -38,16 +39,17 @@ export default function Products() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const url = formData.id ? `/api/admin/products/${formData.id}` : '/api/admin/products';
+        const url = formData.id ? `${API_ENDPOINTS.PRODUCTS}/${formData.id}` : API_ENDPOINTS.PRODUCTS;
         const method = formData.id ? 'PUT' : 'POST';
+
+        const body = { ...formData };
+        const branchId = localStorage.getItem('selectedBranchId');
+        if (!formData.id && branchId) body.branchId = branchId;
 
         await fetch(url, {
             method,
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
+            headers: getHeaders(),
+            body: JSON.stringify(body)
         });
 
         setModalOpen(false);
@@ -56,9 +58,9 @@ export default function Products() {
 
     const handleDelete = async (id) => {
         if (confirm('Delete this product?')) {
-            await fetch(`/api/admin/products/${id}`, {
+            await fetch(`${API_ENDPOINTS.PRODUCTS}/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+                headers: getHeaders()
             });
             fetchProducts(pagination.page);
         }

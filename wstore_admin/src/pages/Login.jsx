@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, ArrowRight, Hexagon, ShieldCheck, Sparkles, Layers } from 'lucide-react';
+import { API_ENDPOINTS } from '../apiConfig';
 
 export default function Login() {
     const [username, setUsername] = useState('');
@@ -13,7 +14,7 @@ export default function Login() {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch('/api/admin/login', {
+            const res = await fetch(API_ENDPOINTS.LOGIN, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
@@ -24,7 +25,8 @@ export default function Login() {
                 localStorage.setItem('adminRole', data.role);
                 localStorage.setItem('branchId', data.branchId || '');
                 localStorage.setItem('branchName', data.branchName || 'Superadmin');
-                navigate('/');
+                localStorage.setItem('tenantName', data.tenantName || 'WStore');
+                navigate('/admin');
             } else {
                 setError(data.error || 'Login failed');
             }

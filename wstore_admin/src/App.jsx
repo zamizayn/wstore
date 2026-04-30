@@ -7,6 +7,10 @@ import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Customers from './pages/Customers';
 import Branches from './pages/Branches';
+import Tenants from './pages/Tenants';
+import OnboardingWizard from './pages/OnboardingWizard';
+import Landing from './pages/Landing';
+import OnboardingGuide from './pages/OnboardingGuide';
 
 const ProtectedRoute = ({ children }) => {
     const token = localStorage.getItem('adminToken');
@@ -18,9 +22,12 @@ export default function App() {
     return (
         <Router>
             <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/onboarding-steps" element={<OnboardingGuide />} />
+                <Route path="/onboard-wizard" element={<OnboardingWizard />} />
                 <Route path="/login" element={<Login />} />
                 <Route
-                    path="/"
+                    path="/admin"
                     element={
                         <ProtectedRoute>
                             <DashboardLayout />
@@ -29,6 +36,7 @@ export default function App() {
                 >
                     <Route index element={<Dashboard />} />
                     <Route path="branches" element={<Branches />} />
+                    <Route path="tenants" element={<Tenants />} />
                     <Route path="categories" element={<Categories />} />
                     <Route path="products" element={<Products />} />
                     <Route path="orders" element={<Orders />} />

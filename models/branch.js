@@ -10,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
+      Branch.belongsTo(models.Tenant, { foreignKey: 'tenantId' });
       Branch.hasMany(models.Category, { foreignKey: 'branchId' });
       Branch.hasMany(models.Product, { foreignKey: 'branchId' });
       Branch.hasMany(models.Order, { foreignKey: 'branchId' });
@@ -19,7 +20,8 @@ module.exports = (sequelize, DataTypes) => {
   Branch.init({
     name: DataTypes.STRING,
     username: DataTypes.STRING,
-    password: DataTypes.STRING
+    password: DataTypes.STRING,
+    tenantId: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Branch',
