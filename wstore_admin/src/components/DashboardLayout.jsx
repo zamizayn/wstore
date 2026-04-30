@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Tags, ShoppingBag, ShoppingCart, Users, LogOut, Hexagon, MapPin, Building2, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Tags, ShoppingBag, ShoppingCart, Users, LogOut, Hexagon, MapPin, Building2, ChevronDown, Boxes } from 'lucide-react';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function DashboardLayout() {
@@ -57,7 +57,7 @@ export default function DashboardLayout() {
                             >
                                 <div className="hub-trigger-content">
                                     <Building2 size={16} />
-                                    <span>{branches.find(b => b.id === selectedBranchId)?.name || 'All Branches'}</span>
+                                    <span>{branches.find(b => String(b.id) === String(selectedBranchId))?.name || 'All Branches'}</span>
                                 </div>
                                 <ChevronDown size={14} className={`chevron-icon ${isHubOpen ? 'rotated' : ''}`} />
                             </button>
@@ -80,7 +80,7 @@ export default function DashboardLayout() {
                                         {branches.map(b => (
                                             <div
                                                 key={b.id}
-                                                className={`hub-option ${selectedBranchId === b.id ? 'current' : ''}`}
+                                                className={`hub-option ${String(selectedBranchId) === String(b.id) ? 'current' : ''}`}
                                                 onClick={() => {
                                                     handleBranchChange({ target: { value: b.id } });
                                                     setIsHubOpen(false);
@@ -105,6 +105,7 @@ export default function DashboardLayout() {
                     <li><NavLink to="/admin/branches" className={({ isActive }) => isActive ? 'active' : ''}><MapPin size={18} /> <span>Branches</span></NavLink></li>
                     <li><NavLink to="/admin/categories" className={({ isActive }) => isActive ? 'active' : ''}><Tags size={18} /> <span>Categories</span></NavLink></li>
                     <li><NavLink to="/admin/products" className={({ isActive }) => isActive ? 'active' : ''}><ShoppingBag size={18} /> <span>Products</span></NavLink></li>
+                    <li><NavLink to="/admin/inventory" className={({ isActive }) => isActive ? 'active' : ''}><Boxes size={18} /> <span>Inventory</span></NavLink></li>
                     <li><NavLink to="/admin/orders" className={({ isActive }) => isActive ? 'active' : ''}><ShoppingCart size={18} /> <span>Orders</span></NavLink></li>
                     <li><NavLink to="/admin/customers" className={({ isActive }) => isActive ? 'active' : ''}><Users size={18} /> <span>Customers</span></NavLink></li>
                 </ul>

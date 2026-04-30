@@ -21,7 +21,7 @@ const getTenantConfig = async (tenantId) => {
 
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
-    
+
     // 1. Check Superadmin
     if (username === ADMIN_USER && password === ADMIN_PASS) {
         const token = jwt.sign({ username, role: 'superadmin' }, JWT_SECRET, { expiresIn: '24h' });
@@ -32,12 +32,12 @@ router.post('/login', async (req, res) => {
     try {
         const branch = await Branch.findOne({ where: { username, password } });
         if (branch) {
-            const token = jwt.sign({ 
-                username, 
-                role: 'branch', 
+            const token = jwt.sign({
+                username,
+                role: 'branch',
                 branchId: branch.id,
                 tenantId: branch.tenantId,
-                branchName: branch.name 
+                branchName: branch.name
             }, JWT_SECRET, { expiresIn: '24h' });
             return res.json({ token, role: 'branch', branchId: branch.id, tenantId: branch.tenantId, tenantName: branch.Tenant?.name || 'Store' });
         }
@@ -45,11 +45,11 @@ router.post('/login', async (req, res) => {
         // 3. Check Tenant Admin
         const tenant = await Tenant.findOne({ where: { username, password, isActive: true } });
         if (tenant) {
-            const token = jwt.sign({ 
-                username, 
-                role: 'tenant', 
+            const token = jwt.sign({
+                username,
+                role: 'tenant',
                 tenantId: tenant.id,
-                tenantName: tenant.name 
+                tenantName: tenant.name
             }, JWT_SECRET, { expiresIn: '24h' });
             return res.json({ token, role: 'tenant', tenantId: tenant.id, tenantName: tenant.name });
         }
@@ -76,6 +76,21 @@ router.post('/branches', async (req, res) => {
         const data = { ...req.body };
         // If user is authenticated, we use their tenantId. 
         // If not (onboarding), we trust the tenantId in the body for now.
+        const authHeader = req.headers['authorization'];
+        if (authHeader) {
+            const token = authHeader.split(' ')[1];
+            if (token && token !== 'null') {
+                try {
+                    const user = jwt.verify(token, JWT_SECRET);
+                    if (user && user.role === 'tenant') {
+                        data.tenantId = user.tenantId;
+                    }
+                } catch (err) {
+                    console.error("Token verification failed during branch creation:", err.message);
+                }
+            }
+        }
+
         const branch = await Branch.create(data);
         res.json(branch);
     } catch (e) {
@@ -86,17 +101,17 @@ router.post('/branches', async (req, res) => {
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    
+
     if (!token) return res.sendStatus(401);
-    
+
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.sendStatus(403);
         req.user = user;
-        
+
         // Helper to get scoping where clause
         req.getScope = async (existingWhere = {}) => {
             if (req.user.role === 'superadmin') return existingWhere;
-            
+
             if (req.user.role === 'tenant') {
                 // If a specific branch is requested via query, and it belongs to this tenant, use it
                 if (req.query.branchId) {
@@ -105,18 +120,18 @@ const authenticateToken = (req, res, next) => {
                 }
 
                 // Default: Fetch all branch IDs for this tenant
-                const branches = await Branch.findAll({ 
+                const branches = await Branch.findAll({
                     where: { tenantId: req.user.tenantId },
                     attributes: ['id']
                 });
                 const branchIds = branches.map(b => b.id);
                 return { ...existingWhere, branchId: { [Op.in]: branchIds } };
             }
-            
+
             // If branch admin, scope by branchId
             return { ...existingWhere, branchId: req.user.branchId };
         };
-        
+
         next();
     });
 };
@@ -150,14 +165,14 @@ router.post('/categories', async (req, res) => {
 });
 router.put('/categories/:id', async (req, res) => {
     const item = await Category.findByPk(req.params.id);
-    if(item) {
+    if (item) {
         await item.update(req.body);
         res.json(item);
     } else res.status(404).send();
 });
 router.delete('/categories/:id', async (req, res) => {
     const item = await Category.findByPk(req.params.id);
-    if(item) {
+    if (item) {
         await item.destroy();
         res.json({ success: true });
     } else res.status(404).send();
@@ -191,14 +206,14 @@ router.post('/products', async (req, res) => {
 });
 router.put('/products/:id', async (req, res) => {
     const item = await Product.findByPk(req.params.id);
-    if(item) {
+    if (item) {
         await item.update(req.body);
         res.json(item);
     } else res.status(404).send();
 });
 router.delete('/products/:id', async (req, res) => {
     const item = await Product.findByPk(req.params.id);
-    if(item) {
+    if (item) {
         await item.destroy();
         res.json({ success: true });
     } else res.status(404).send();
@@ -255,11 +270,11 @@ router.get('/orders', async (req, res) => {
 router.put('/orders/:id/status', async (req, res) => {
     try {
         const order = await Order.findByPk(req.params.id);
-        if(!order) return res.status(404).json({ error: 'Order not found' });
-        
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
         order.status = req.body.status;
         await order.save();
-        
+
         let msg = '';
         if (order.status === 'shipped') {
             msg = `🚚 *Update on your Order #${order.id}*\n\nGreat news! Your order has been shipped and is on its way to you!`;
@@ -272,7 +287,7 @@ router.put('/orders/:id/status', async (req, res) => {
         try {
             const config = await getTenantConfig(order.tenantId || (await Branch.findByPk(order.branchId))?.tenantId);
             await sendTextMessage(order.customerPhone, msg, config);
-        } catch(e) {
+        } catch (e) {
             console.error("WhatsApp notification error:", e.message);
         }
 
@@ -338,7 +353,7 @@ router.post('/customers/broadcast', async (req, res) => {
             failCount++;
         }
     }
-    
+
 
     res.json({ successCount, failCount });
 });
@@ -375,10 +390,10 @@ router.get('/analytics', async (req, res) => {
         });
 
         // Top 5 Products
-        const allOrders = await Order.findAll({ 
+        const allOrders = await Order.findAll({
             where: await req.getScope(),
-            attributes: ['items'], 
-            raw: true 
+            attributes: ['items'],
+            raw: true
         });
         const productCounts = {};
         allOrders.forEach(o => {
@@ -430,10 +445,10 @@ router.get('/analytics', async (req, res) => {
 
         // 2. Revenue by Category
         const categoryRevenue = {};
-        const ordersForCat = await Order.findAll({ 
+        const ordersForCat = await Order.findAll({
             where: await req.getScope(),
-            attributes: ['items', 'total'], 
-            raw: true 
+            attributes: ['items', 'total'],
+            raw: true
         });
         ordersForCat.forEach(o => {
             const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
@@ -534,7 +549,7 @@ router.delete('/tenants/:id', async (req, res) => {
 router.post('/tenants/:id/enable-webhooks', async (req, res) => {
     try {
         if (req.user.role !== 'superadmin' && req.user.role !== 'tenant') return res.status(403).json({ error: 'Access denied' });
-        
+
         // If tenant role, enforce their own tenantId. Otherwise use the ID from URL.
         const tenantId = req.user.role === 'tenant' ? req.user.tenantId : req.params.id;
 
@@ -556,7 +571,7 @@ router.post('/tenants/:id/enable-webhooks', async (req, res) => {
         // Call Meta API
         const axios = require('axios');
         const url = `https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`;
-        
+
         try {
             await axios.post(url, {}, {
                 headers: {
@@ -571,9 +586,9 @@ router.post('/tenants/:id/enable-webhooks', async (req, res) => {
             res.json({ success: true, message: 'Webhooks enabled and subscribed on Meta' });
         } catch (metaError) {
             console.error('Meta API Error:', metaError.response?.data || metaError.message);
-            res.status(500).json({ 
-                error: 'Failed to subscribe on Meta', 
-                details: metaError.response?.data || metaError.message 
+            res.status(500).json({
+                error: 'Failed to subscribe on Meta',
+                details: metaError.response?.data || metaError.message
             });
         }
     } catch (e) {
@@ -585,16 +600,16 @@ router.post('/tenants/:id/enable-webhooks', async (req, res) => {
 router.get('/branches', async (req, res) => {
     try {
         if (!['superadmin', 'tenant', 'branch'].includes(req.user.role)) return res.status(403).json({ error: 'Access denied' });
-        
+
         let where = {};
         if (req.user.role === 'tenant' || req.user.role === 'branch') {
             if (!req.user.tenantId) return res.json([]); // Security: if no tenantId, return none
             where = { tenantId: req.user.tenantId };
         }
-        const branches = await Branch.findAll({ 
+        const branches = await Branch.findAll({
             where,
             include: [{ model: Tenant }], // Removed as: 'Tenant' for broader compatibility
-            order: [['name', 'ASC']] 
+            order: [['name', 'ASC']]
         });
         res.json(branches);
     } catch (e) {
@@ -602,12 +617,12 @@ router.get('/branches', async (req, res) => {
     }
 });
 
-router.post('/branches', async (req, res) => {
+router.delete('/branches/:id', async (req, res) => {
     // Allow superadmin, tenant, and branch roles (Everyone)
     if (!['superadmin', 'tenant', 'branch'].includes(req.user.role)) {
         return res.status(403).json({ error: 'Access denied', role: req.user.role });
     }
-    
+
     const branch = await Branch.findByPk(req.params.id);
     if (branch) {
         // Tenants and Branch admins can only delete their own branches
