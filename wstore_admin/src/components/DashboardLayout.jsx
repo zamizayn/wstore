@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Tags, ShoppingBag, ShoppingCart, Users, LogOut, Hexagon, MapPin, Building2 } from 'lucide-react';
+import { LayoutDashboard, Tags, ShoppingBag, ShoppingCart, Users, LogOut, Hexagon, MapPin, Building2, ChevronDown } from 'lucide-react';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function DashboardLayout() {
     const navigate = useNavigate();
     const [branches, setBranches] = useState([]);
     const [selectedBranchId, setSelectedBranchId] = useState(localStorage.getItem('selectedBranchId') || '');
+    const [isHubOpen, setIsHubOpen] = useState(false);
 
     const role = localStorage.getItem('adminRole');
 
@@ -45,30 +46,54 @@ export default function DashboardLayout() {
                 </div>
 
                 {role === 'tenant' && branches.length > 0 && (
-                    <div className="branch-selector-sidebar" style={{ padding: '0 20px 20px', marginBottom: '10px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                        <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="hub-selector-container">
+                        <div className="hub-label">
                             <MapPin size={12} /> Active Hub
                         </div>
-                        <select 
-                            value={selectedBranchId} 
-                            onChange={handleBranchChange}
-                            style={{ 
-                                width: '100%', 
-                                padding: '10px', 
-                                borderRadius: '10px', 
-                                border: '1px solid #e2e8f0', 
-                                background: '#f8fafc',
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                color: '#1e293b',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <option value="">All Branches</option>
-                            {branches.map(b => (
-                                <option key={b.id} value={b.id}>{b.name}</option>
-                            ))}
-                        </select>
+                        <div className="hub-selector-wrapper">
+                            <button 
+                                className={`hub-selector-trigger ${isHubOpen ? 'active' : ''}`}
+                                onClick={() => setIsHubOpen(!isHubOpen)}
+                            >
+                                <div className="hub-trigger-content">
+                                    <Building2 size={16} />
+                                    <span>{branches.find(b => b.id === selectedBranchId)?.name || 'All Branches'}</span>
+                                </div>
+                                <ChevronDown size={14} className={`chevron-icon ${isHubOpen ? 'rotated' : ''}`} />
+                            </button>
+
+                            {isHubOpen && (
+                                <>
+                                    <div className="hub-menu-overlay" onClick={() => setIsHubOpen(false)}></div>
+                                    <div className="hub-options-menu animate-slide-down">
+                                        <div 
+                                            className={`hub-option ${!selectedBranchId ? 'current' : ''}`}
+                                            onClick={() => {
+                                                handleBranchChange({ target: { value: '' } });
+                                                setIsHubOpen(false);
+                                            }}
+                                        >
+                                            <div className="option-dot"></div>
+                                            <span>All Branches</span>
+                                        </div>
+                                        <div className="menu-divider"></div>
+                                        {branches.map(b => (
+                                            <div 
+                                                key={b.id} 
+                                                className={`hub-option ${selectedBranchId === b.id ? 'current' : ''}`}
+                                                onClick={() => {
+                                                    handleBranchChange({ target: { value: b.id } });
+                                                    setIsHubOpen(false);
+                                                }}
+                                            >
+                                                <div className="option-dot"></div>
+                                                <span>{b.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 )}
 
