@@ -89,6 +89,38 @@ const sendImageMessage = async (to, imageUrl, caption = '', config = {}) => {
     }
 };
 
+const sendVideoMessage = async (to, videoUrl, caption = '', config = {}) => {
+    try {
+        await axios.post(getUrl(config), {
+            messaging_product: 'whatsapp',
+            to,
+            type: 'video',
+            video: { link: videoUrl, caption }
+        }, { headers: getHeaders(config) });
+    } catch (error) {
+        console.error('WhatsApp Video Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
+const sendLocationRequest = async (to, bodyText, config = {}) => {
+    try {
+        await axios.post(getUrl(config), {
+            messaging_product: 'whatsapp',
+            to,
+            type: 'interactive',
+            interactive: {
+                type: 'location_request_message',
+                body: { text: bodyText },
+                action: { name: 'send_location' }
+            }
+        }, { headers: getHeaders(config) });
+    } catch (error) {
+        console.error('WhatsApp Location Request Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
 const sendProductCardMessage = async (to, product, config = {}) => {
     try {
         await axios.post(getUrl(config), {
@@ -121,5 +153,7 @@ module.exports = {
     sendButtonMessage,
     sendListMessage,
     sendImageMessage,
+    sendVideoMessage,
+    sendLocationRequest,
     sendProductCardMessage
 };

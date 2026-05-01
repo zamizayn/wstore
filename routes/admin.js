@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { Product, Category, Order, Customer, Branch, Tenant } = require('../models');
-const { sendTextMessage } = require('../services/whatsappService');
+const { sendTextMessage, sendButtonMessage } = require('../services/whatsappService');
 const { Op, fn, col, literal } = require('sequelize');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_wstore';
@@ -286,7 +286,15 @@ router.put('/orders/:id/status', async (req, res) => {
 
         try {
             const config = await getTenantConfig(order.tenantId || (await Branch.findByPk(order.branchId))?.tenantId);
-            await sendTextMessage(order.customerPhone, msg, config);
+
+            if (order.status === 'delivered') {
+                await sendButtonMessage(order.customerPhone, msg, [
+                    { id: `rate_${order.id}`, title: 'Rate Order ⭐' },
+                    { id: 'menu', title: 'Main Menu' }
+                ], config);
+            } else {
+                await sendTextMessage(order.customerPhone, msg, config);
+            }
         } catch (e) {
             console.error("WhatsApp notification error:", e.message);
         }
