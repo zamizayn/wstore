@@ -285,8 +285,26 @@ router.get('/orders', async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
+        const where = await req.getScope();
+
+        if (status) where.status = status;
+        if (branchId) where.branchId = branchId;
+        if (search) {
+            const { Op } = require('sequelize');
+            where[Op.or] = [
+                { id: isNaN(search) ? -1 : parseInt(search) },
+                { customerPhone: { [Op.iLike]: `%${search}%` } }
+            ];
+        }
+        if (startDate || endDate) {
+            const { Op } = require('sequelize');
+            where.createdAt = {};
+            if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+            if (endDate) where.createdAt[Op.lte] = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+        }
+
         const { count, rows } = await Order.findAndCountAll({
-            where: await req.getScope(),
+            where,
             limit,
             offset,
             order: [['createdAt', 'DESC']]
@@ -385,7 +403,23 @@ router.get('/customers/:phone/logs', async (req, res) => {
             order: [['createdAt', 'DESC']],
             limit: 100
         });
-        res.json(logs);
+
+        // Enrich logs with names for better display
+        const enrichedLogs = await Promise.all(logs.map(async (log) => {
+            const data = log.toJSON();
+            const { details, actionType } = data;
+
+            if (actionType === 'CATEGORY_VIEWED' && details.categoryId && !details.categoryName) {
+                const cat = await Category.findByPk(details.categoryId);
+                if (cat) details.categoryName = cat.name;
+            } else if ((actionType === 'PRODUCT_VIEWED' || actionType === 'ADDED_TO_CART') && details.productId && !details.productName) {
+                const prod = await Product.findByPk(details.productId);
+                if (prod) details.productName = prod.name;
+            }
+            return data;
+        }));
+
+        res.json(enrichedLogs);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

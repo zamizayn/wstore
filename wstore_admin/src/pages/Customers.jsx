@@ -51,6 +51,30 @@ export default function Customers() {
 
     useEffect(() => { fetchCustomers(); }, []);
 
+    const formatLogDetails = (log) => {
+        const { details, actionType } = log;
+        if (!details) return '';
+        
+        switch(actionType) {
+            case 'CATEGORY_VIEWED':
+                return <span>Viewing Category: <strong>{details.categoryName || `ID: ${details.categoryId}`}</strong></span>;
+            case 'PRODUCT_VIEWED':
+                return <span>Viewing Product: <strong>{details.productName || `ID: ${details.productId}`}</strong></span>;
+            case 'ADDED_TO_CART':
+                return <span>Added to Cart: <strong>{details.productName || `ID: ${details.productId}`}</strong></span>;
+            case 'CHECKOUT':
+                return details.type === 'native_order' ? 'Started Native WhatsApp Checkout' : 'Initiated Checkout';
+            case 'SEARCHED':
+                return <span>Searched for: "<strong>{details.query}</strong>"</span>;
+            case 'MENU_VIEWED':
+                return 'Opened Main Menu';
+            case 'SHOP_VIEWED':
+                return 'Opened Category List';
+            default:
+                return JSON.stringify(details) === '{}' ? 'No extra details' : JSON.stringify(details);
+        }
+    };
+
     const toggleSelect = (phone) => {
         if (selectedPhones.includes(phone)) {
             setSelectedPhones(selectedPhones.filter(p => p !== phone));
@@ -256,7 +280,7 @@ export default function Customers() {
                                         <tr key={log.id}>
                                             <td style={{whiteSpace: 'nowrap'}}>{new Date(log.createdAt).toLocaleString()}</td>
                                             <td><span className="badge">{log.actionType}</span></td>
-                                            <td style={{fontSize: '12px', wordBreak: 'break-all'}}>{JSON.stringify(log.details)}</td>
+                                            <td style={{fontSize: '12px', wordBreak: 'break-all'}}>{formatLogDetails(log)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

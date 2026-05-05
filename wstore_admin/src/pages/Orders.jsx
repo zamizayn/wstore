@@ -21,11 +21,24 @@ export default function Orders() {
         items: [],
         status: 'pending'
     });
+    const [filters, setFilters] = useState({
+        status: '',
+        search: '',
+        startDate: '',
+        endDate: ''
+    });
     const navigate = useNavigate();
 
     const fetchOrders = async (page = 1) => {
         const branchId = localStorage.getItem('selectedBranchId') || '';
-        const res = await fetch(`${API_ENDPOINTS.ORDERS}?page=${page}&limit=10&branchId=${branchId}`, {
+        let url = `${API_ENDPOINTS.ORDERS}?page=${page}&limit=10&branchId=${branchId}`;
+        
+        if (filters.status) url += `&status=${filters.status}`;
+        if (filters.search) url += `&search=${filters.search}`;
+        if (filters.startDate) url += `&startDate=${filters.startDate}`;
+        if (filters.endDate) url += `&endDate=${filters.endDate}`;
+
+        const res = await fetch(url, {
             headers: getHeaders()
         });
         if (res.status === 401) return navigate('/login');
@@ -46,7 +59,7 @@ export default function Orders() {
     useEffect(() => {
         fetchOrders();
         fetchProducts();
-    }, []);
+    }, [filters]);
 
     const handlePageChange = (newPage) => {
         fetchOrders(newPage);
@@ -138,8 +151,66 @@ export default function Orders() {
                 <h1>Orders Log</h1>
             </header>
             <div className="content-view active">
-                <div className="action-bar">
-                    <button className="btn-primary" onClick={() => setModalOpen(true)}><Plus size={18} /> Create Manual Order</button>
+                <div className="action-bar" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <button className="btn-primary" onClick={() => setModalOpen(true)}><Plus size={18} /> Create Manual Order</button>
+                    </div>
+
+                    <div className="filters-container" style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+                        gap: '15px', 
+                        background: 'rgba(0,0,0,0.02)', 
+                        padding: '20px', 
+                        borderRadius: '12px',
+                        border: '1px solid var(--border)'
+                    }}>
+                        <div className="filter-group">
+                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>Search</label>
+                            <input 
+                                type="text" 
+                                placeholder="Order ID or Phone..." 
+                                value={filters.search} 
+                                onChange={e => setFilters({ ...filters, search: e.target.value })} 
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>Status</label>
+                            <select 
+                                value={filters.status} 
+                                onChange={e => setFilters({ ...filters, status: e.target.value })}
+                                style={{ width: '100%' }}
+                            >
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>From Date</label>
+                            <input 
+                                type="date" 
+                                value={filters.startDate} 
+                                onChange={e => setFilters({ ...filters, startDate: e.target.value })} 
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>To Date</label>
+                            <input 
+                                type="date" 
+                                value={filters.endDate} 
+                                onChange={e => setFilters({ ...filters, endDate: e.target.value })} 
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div className="filter-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                            <button className="btn-outline w-full" onClick={() => setFilters({ status: '', search: '', startDate: '', endDate: '' })}>Clear Filters</button>
+                        </div>
+                    </div>
                 </div>
                 <div className="table-container">
                     <table>

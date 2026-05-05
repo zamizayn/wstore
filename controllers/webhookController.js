@@ -422,6 +422,7 @@ const handleCategorySelection = async (from, text, session) => {
     const category = await Category.findByPk(categoryId);
 
     if (category) {
+        await logCustomerActivity(from, session.tenantId, session.branchId || category.branchId, 'CATEGORY_VIEWED', { categoryId: category.id, categoryName: category.name });
         const branchId = session.branchId || category.branchId;
 
         session.state = 'SELECTING_PRODUCT';
@@ -536,6 +537,7 @@ const handleProductSelection = async (from, text, session) => {
     const selectedProduct = await Product.findByPk(productId);
 
     if (selectedProduct) {
+        await logCustomerActivity(from, session.tenantId, session.branchId || selectedProduct.branchId, 'PRODUCT_VIEWED', { productId: selectedProduct.id, productName: selectedProduct.name });
         session.state = 'VIEWING_PRODUCT';
         session.productId = selectedProduct.id;
 
@@ -556,6 +558,7 @@ const handleAddToCart = async (from, text, session) => {
     const product = await Product.findByPk(productId);
 
     if (product) {
+        await logCustomerActivity(from, session.tenantId, session.branchId || product.branchId, 'ADDED_TO_CART', { productId: product.id, productName: product.name });
         session.state = 'COLLECTING_QUANTITY';
         session.pendingAction = type;
         session.pendingProductId = product.id;
@@ -853,13 +856,10 @@ const receiveWebhook = async (req, res) => {
                 await handleHomeMenu(from, session, tenant, customer);
             }
         } else if (text.startsWith('category_')) {
-            await logCustomerActivity(from, tenant.id, session.branchId, 'CATEGORY_VIEWED', { categoryId: text.replace('category_', '') });
             await handleCategorySelection(from, text, session);
         } else if (text.startsWith('product_')) {
-            await logCustomerActivity(from, tenant.id, session.branchId, 'PRODUCT_VIEWED', { productId: text.replace('product_', '') });
             await handleProductSelection(from, text, session);
         } else if (text.startsWith('add_') || text.startsWith('buy_')) {
-            await logCustomerActivity(from, tenant.id, session.branchId, 'ADDED_TO_CART', { productId: text.replace('add_', '').replace('buy_', '') });
             await handleAddToCart(from, text, session);
         } else if (session.state === 'COLLECTING_QUANTITY') {
             await handleQuantitySelection(from, text, session);
