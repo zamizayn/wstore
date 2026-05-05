@@ -4,7 +4,8 @@ const {
     sendListMessage,
     sendProductCardMessage,
     sendSingleProductMessage,
-    sendMultiProductMessage
+    sendMultiProductMessage,
+    sendCarouselMessage
 } = require('../services/whatsappService');
 
 const {
@@ -133,7 +134,12 @@ const handleSearching = async (from, text, session) => {
         return 'RE_ROUTE';
     }
 
-    const searchResults = await Product.findAll({
+    session.state = 'SEARCHING';
+    session.searchQuery = text; // Store for pagination
+
+    const page = session.page || 1;
+    const limit = 10;
+    const { count, rows: searchResults } = await Product.findAndCountAll({
         where: {
             [Op.or]: [
                 { name: { [Op.iLike]: `%${text}%` } },
@@ -141,34 +147,60 @@ const handleSearching = async (from, text, session) => {
             ],
             branchId: session.branchId || { [Op.not]: null }
         },
-        limit: 10
+        order: [['name', 'ASC']],
+        limit,
+        offset: (page - 1) * limit
     });
 
-    if (searchResults.length === 0) {
+    if (count === 0) {
         return await sendButtonMessage(from, `❌ No products found matching "*${text}*". Try another name or browse our categories.`, [{ id: 'search_mode', title: 'Search Again' }, { id: 'shop', title: 'Browse Store' }], session.config);
     }
 
     if (session.catalogId) {
+        const uniqueRetailerIds = new Set();
+        const productItems = [];
+        searchResults.forEach(p => {
+            if (p.retailerId && !uniqueRetailerIds.has(p.retailerId)) {
+                uniqueRetailerIds.add(p.retailerId);
+                productItems.push({ product_retailer_id: p.retailerId });
+            }
+        });
+
         const sections = [{
             title: 'Search Results',
-            product_items: searchResults.map(p => ({ product_retailer_id: p.retailerId }))
+            product_items: productItems
         }];
-        await sendMultiProductMessage(from, session.catalogId, `🔍 Found ${searchResults.length} matches for "*${text}*"`, 'Choose a product below', sections, session.config);
+
+        const optionRows = [];
+        if (count > page * limit) {
+            optionRows.push({ id: `search_page_${page + 1}`, title: 'Next Page ➡️', description: `View more results for "${text}"` });
+        }
+        if (page > 1) {
+            optionRows.push({ id: `search_page_${page - 1}`, title: '⬅️ Previous Page', description: 'Go back' });
+        }
+        optionRows.push({ id: 'search_mode', title: '🔍 Search Again', description: 'Try a different keyword' });
+        if (productItems.length === 1) {
+            await sendProductCardMessage(from, searchResults[0], session.config);
+        } else {
+            await sendMultiProductMessage(from, session.catalogId, `🔍 Search: "${text}" (Page ${page})`, `Found ${count} matches`, sections, session.config);
+        }
+        if (optionRows.length > 0) {
+            await sendListMessage(from, "⚙️ *Search Options*", "Options", [{ title: "Options", rows: optionRows }], session.config);
+        }
     } else {
-        await sendListMessage(
-            from,
-            `🔍 Found ${searchResults.length} matches for "*${text}*":`,
-            'Select Product',
-            [{
-                title: 'Search Results',
-                rows: searchResults.map(p => ({
-                    id: `product_${p.id}`,
-                    title: p.name.slice(0, 24),
-                    description: `₹${p.price}`
-                }))
-            }],
-            session.config
-        );
+        if (searchResults.length === 1) {
+            await sendProductCardMessage(from, searchResults[0], session.config);
+        } else {
+            const carouselCards = searchResults.map(p => ({
+                image: p.image || 'https://via.placeholder.com/600x400?text=No+Image',
+                title: p.name,
+                buttons: [
+                    { id: `product_${p.id}`, title: 'View Details' },
+                    { id: `add_${p.id}`, title: `Add ₹${p.price}` }
+                ]
+            }));
+            await sendCarouselMessage(from, `🔍 Search results for "*${text}*"`, carouselCards, session.config);
+        }
     }
 
     session.state = 'START';
@@ -230,27 +262,37 @@ const handleShop = async (from, text, session, tenant, customer) => {
             });
 
             if (session.catalogId) {
+                const uniqueRetailerIds = new Set();
+                const productItems = [];
+                catProducts.forEach(p => {
+                    if (p.retailerId && !uniqueRetailerIds.has(p.retailerId)) {
+                        uniqueRetailerIds.add(p.retailerId);
+                        productItems.push({ product_retailer_id: p.retailerId });
+                    }
+                });
+
                 const sections = [{
                     title: category.name.slice(0, 24),
-                    product_items: catProducts.map(p => ({ product_retailer_id: p.retailerId }))
+                    product_items: productItems
                 }];
                 return await sendMultiProductMessage(from, session.catalogId, `🛍️ ${category.name} Collection`, 'Choose a product below', sections, session.config);
             } else {
-                return await sendListMessage(
-                    from,
-                    `🛍️ ${category.name} Collection`,
-                    'View Products',
-                    [{
-                        title: category.name,
-                        rows: catProducts.map(p => ({
-                            id: `product_${p.id}`,
-                            title: p.name.slice(0, 24),
-                            description: `₹${p.price}`
-                        }))
-                    }],
-                    session.config
-                );
+                if (catProducts.length === 1) {
+                    await sendProductCardMessage(from, catProducts[0], session.config);
+                } else {
+                    const carouselCards = catProducts.map(p => ({
+                        image: p.image || 'https://via.placeholder.com/600x400?text=No+Image',
+                        title: p.name,
+                        buttons: [
+                            { id: `product_${p.id}`, title: 'View Details' },
+                            { id: `add_${p.id}`, title: `Add ₹${p.price}` }
+                        ]
+                    }));
+
+                    await sendCarouselMessage(from, `🛍️ *${category.name}*`, carouselCards, session.config);
+                }
             }
+            return;
         }
     }
 
@@ -340,27 +382,37 @@ const handleBranchSelection = async (from, text, session) => {
             console.error("Failed to update customer branch:", e.message);
         }
 
-        const categories = await Category.findAll({
+        const page = session.page || 1;
+        const limit = 10;
+        const { count, rows: categories } = await Category.findAndCountAll({
             where: { branchId: branch.id },
-            order: [['name', 'ASC']]
+            order: [['name', 'ASC']],
+            limit,
+            offset: (page - 1) * limit
         });
 
-        if (categories.length === 0) {
+        if (count === 0) {
             return await sendTextMessage(from, `Welcome to ${branch.name}! 👋\n\nWe haven't added any categories to this branch yet. Please check back later! 🛍️`, session.config);
+        }
+
+        const rows = categories.map(category => ({
+            id: `category_${category.id}`,
+            title: category.name.slice(0, 24),
+            description: category.description || 'Browse products'
+        }));
+
+        if (count > page * limit) {
+            rows.push({ id: `shop_page_${page + 1}`, title: 'Next Page ➡️', description: 'See more categories' });
+        }
+        if (page > 1) {
+            rows.push({ id: `shop_page_${page - 1}`, title: '⬅️ Previous Page', description: 'Go back' });
         }
 
         await sendListMessage(
             from,
-            `Welcome to ${branch.name}! 👋\n\nChoose a category below`,
+            `Welcome to ${branch.name}! 👋 (Page ${page})\n\nChoose a category below`,
             'View Categories',
-            [{
-                title: '📂 Categories',
-                rows: categories.map(category => ({
-                    id: `category_${category.id}`,
-                    title: category.name.slice(0, 24),
-                    description: category.description || 'Browse products'
-                }))
-            }],
+            [{ title: '📂 Categories', rows }],
             session.config
         );
     }
@@ -391,24 +443,35 @@ const handleCategorySelection = async (from, text, session) => {
             offset: (page - 1) * limit
         });
 
-        if (catProducts.length === 0) {
-            return await sendButtonMessage(from, `The *${category.name}* category is currently empty. Check back soon! 🛍️`, [{ id: 'change_category', title: 'Choose Category' }, { id: 'menu', title: 'Main Menu' }], session.config);
-        }
-
+        console.log(`[DEBUG] Category Selection - Catalog ID: ${session.catalogId}`);
         if (session.catalogId) {
-            const sections = [];
-            if (page === 1 && catProducts.length > 3) {
-                sections.push({
-                    title: '🔥 Best Sellers',
-                    product_items: catProducts.slice(0, 3).map(p => ({ product_retailer_id: p.retailerId }))
-                });
-            }
-            sections.push({
-                title: `${category.name} Collection`.slice(0, 24),
-                product_items: catProducts.map(p => ({ product_retailer_id: p.retailerId }))
+            const uniqueRetailerIds = new Set();
+            const productItems = [];
+
+            catProducts.forEach(p => {
+                if (p.retailerId && !uniqueRetailerIds.has(p.retailerId)) {
+                    uniqueRetailerIds.add(p.retailerId);
+                    productItems.push({ product_retailer_id: p.retailerId });
+                }
             });
 
-            await sendMultiProductMessage(from, session.catalogId, `🛍️ *${category.name}* (Page ${page})`, 'Choose a product below', sections, session.config);
+            if (productItems.length === 0) {
+                await sendTextMessage(from, "🛍️ No products available in this category yet.", session.config);
+            } else if (productItems.length === 1) {
+                // If only 1 product has a Retailer ID, use Single Product Message
+                const singleProd = catProducts.find(p => p.retailerId === productItems[0].product_retailer_id);
+                await sendProductCardMessage(from, singleProd, session.config);
+            } else {
+                const sections = [
+                    {
+                        title: `${category.name} Collection`.slice(0, 24),
+                        product_items: productItems
+                    }
+                ];
+
+                console.log(`[DEBUG] Sending MPM for category: ${category.name}, IDs:`, JSON.stringify(productItems));
+                await sendMultiProductMessage(from, session.catalogId, `🛍️ ${category.name}`, 'Choose a product below', sections, session.config);
+            }
 
             const optionRows = [];
             if (count > page * limit) {
@@ -418,58 +481,25 @@ const handleCategorySelection = async (from, text, session) => {
                 optionRows.push({ id: `prev_page_${category.id}`, title: '⬅️ Previous Page', description: 'Go back' });
             }
 
-            optionRows.push({ id: `sort_toggle_${category.id}`, title: '🔃 Sort By Price', description: `Current: ${sort.replace('_', ' ')}` });
-            optionRows.push({ id: 'change_category', title: '📂 Change Category', description: 'View other categories' });
-
-            // Send pagination options as a separate list message since native cart limits buttons
-            await sendListMessage(from, "More Options:", "Options", [{ title: "Options", rows: optionRows }], session.config);
-
+            if (optionRows.length > 0) {
+                await sendListMessage(from, "⚙️ *More Options*", "Options", [{ title: "Options", rows: optionRows }], session.config);
+            }
         } else {
-            const sections = [];
+            // Fallback for tenants without a catalog
+            if (catProducts.length === 1) {
+                await sendProductCardMessage(from, catProducts[0], session.config);
+            } else {
+                const carouselCards = catProducts.map(p => ({
+                    image: p.image || 'https://via.placeholder.com/600x400?text=No+Image',
+                    title: p.name,
+                    buttons: [
+                        { id: `product_${p.id}`, title: 'View Details' },
+                        { id: `add_${p.id}`, title: `Add ₹${p.price}` }
+                    ]
+                }));
 
-            if (page === 1 && catProducts.length > 3) {
-                sections.push({
-                    title: '🔥 Best Sellers',
-                    rows: catProducts.slice(0, 3).map(product => ({
-                        id: `product_${product.id}`,
-                        title: `✨ ${product.name.slice(0, 20)}`,
-                        description: `₹${product.price} - Popular`
-                    }))
-                });
+                await sendCarouselMessage(from, `🛍️ *${category.name}*`, carouselCards, session.config);
             }
-
-            sections.push({
-                title: `${category.name} Collection`,
-                rows: catProducts.map(product => ({
-                    id: `product_${product.id}`,
-                    title: product.name.slice(0, 24),
-                    description: `₹${product.price}`
-                }))
-            });
-
-            const optionRows = [];
-            if (count > page * limit) {
-                optionRows.push({ id: `next_page_${category.id}`, title: 'Next Page ➡️', description: `View more in ${category.name}` });
-            }
-            if (page > 1) {
-                optionRows.push({ id: `prev_page_${category.id}`, title: '⬅️ Previous Page', description: 'Go back' });
-            }
-
-            optionRows.push({ id: `sort_toggle_${category.id}`, title: '🔃 Sort By Price', description: `Current: ${sort.replace('_', ' ')}` });
-            optionRows.push({ id: 'change_category', title: '📂 Change Category', description: 'View other categories' });
-
-            sections.push({
-                title: '⚙️ Options',
-                rows: optionRows
-            });
-
-            await sendListMessage(
-                from,
-                `🛍️ *${category.name}* (Page ${page})\n\nChoose a product below`,
-                'View Products',
-                sections,
-                session.config
-            );
         }
     } else {
         await sendTextMessage(from, 'Invalid category ❌', session.config);
@@ -823,6 +853,17 @@ const receiveWebhook = async (req, res) => {
         } else if (text.startsWith('next_page_') || text.startsWith('prev_page_') || text.startsWith('sort_toggle_') || text.startsWith('sort_low_') || text.startsWith('sort_high_') || text.startsWith('sort_name_')) {
             const nextText = await handlePaginationAndSorting(from, text, session);
             if (nextText) await handleCategorySelection(from, nextText, session);
+        } else if (text.startsWith('shop_page_')) {
+            session.page = parseInt(text.replace('shop_page_', ''));
+            await handleShop(from, 'shop', session, tenant, customer);
+        } else if (text.startsWith('search_page_')) {
+            session.page = parseInt(text.replace('search_page_', ''));
+            // Re-run search with the stored query
+            if (session.searchQuery) {
+                await handleSearching(from, session.searchQuery, session);
+            } else {
+                await handleHomeMenu(from, session, tenant, customer);
+            }
         } else if (text.startsWith('category_')) {
             await logCustomerActivity(from, tenant.id, session.branchId, 'CATEGORY_VIEWED', { categoryId: text.replace('category_', '') });
             await handleCategorySelection(from, text, session);

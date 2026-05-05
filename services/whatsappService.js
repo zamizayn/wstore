@@ -193,8 +193,112 @@ const sendMultiProductMessage = async (to, catalogId, headerText = 'Our Products
             }
         }, { headers: getHeaders(config) });
     } catch (error) {
-        console.error('WhatsApp Multi Product Error:', error.response?.data || error.message);
+        console.error('WhatsApp Multi Product Error:', JSON.stringify(error.response?.data || error.message, null, 2));
+        console.error('Payload:', JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'interactive',
+            interactive: {
+                type: 'product_list',
+                header: { type: 'text', text: headerText.slice(0, 60) },
+                body: { text: bodyText },
+                footer: { text: 'WStore 🛍️' },
+                action: {
+                    catalog_id: catalogId,
+                    sections: sections.map(s => ({
+                        title: (s.title || '').slice(0, 24),
+                        product_items: s.product_items
+                    }))
+                }
+            }
+        }, null, 2));
         throw error;
+    }
+};
+
+const sendCarouselMessage = async (to, bodyText, cards, config = {}) => {
+    try {
+        await axios.post(getUrl(config), {
+            messaging_product: 'whatsapp',
+            to,
+            type: 'interactive',
+            interactive: {
+                type: 'carousel',
+                body: { text: bodyText },
+                action: {
+                    cards: cards.map((card, index) => ({
+                        card_index: index,
+                        type: 'button',
+                        header: {
+                            type: 'image',
+                            image: { link: card.image }
+                        },
+                        body: {
+                            text: (card.title || '').slice(0, 32)
+                        },
+                        action: {
+                            buttons: card.buttons.map(btn => ({
+                                type: 'quick_reply',
+                                quick_reply: { id: btn.id, title: btn.title.slice(0, 20) }
+                            }))
+                        }
+                    }))
+                }
+            }
+        }, { headers: getHeaders(config) });
+    } catch (error) {
+        console.error('WhatsApp Carousel Error:', JSON.stringify(error.response?.data || error.message, null, 2));
+        throw error;
+    }
+};
+
+/**
+ * Syncs a product to the Meta Catalog via the Batch API
+ */
+const syncProductToMeta = async (product, config) => {
+    const { catalogId, whatsappToken } = config;
+    if (!catalogId || !whatsappToken) {
+        console.log('[Meta Sync] Skipped: catalogId or whatsappToken missing');
+        return;
+    }
+
+    try {
+        console.log(`[Meta Sync] 🚀 Starting upload for: ${product.name}`);
+        const axios = require('axios');
+        const version = config.version || process.env.GRAPH_API_VERSION || 'v17.0';
+        const url = `https://graph.facebook.com/${version}/${catalogId}/batch`;
+
+        const payload = {
+            allow_upsert: true,
+            item_type: 'ITEM', // ✅ required here
+            requests: [{
+                method: 'CREATE',
+                retailer_id: String(product.retailerId),
+                data: {
+                    name: product.name,
+                    description: (product.description || product.name).slice(0, 9000),
+                    image_url: product.image,
+                    price: Math.round(product.price * 100),
+                    currency: 'INR',
+                    availability: (product.stock && product.stock > 0) ? 'in stock' : 'out of stock',
+                    condition: 'new',
+                    url: `https://wstore.app/p/${product.id}`
+                }
+            }]
+        };
+
+        const res = await axios.post(url, payload, {
+            headers: {
+                'Authorization': `Bearer ${whatsappToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        console.log(`[Meta Sync] Result for ${product.name}:`, JSON.stringify(res.data, null, 2));
+        return res.data;
+    } catch (e) {
+        console.error(`[Meta Sync] Failed for ${product.name}:`, e.response?.data || e.message);
+        throw e;
     }
 };
 
@@ -207,5 +311,7 @@ module.exports = {
     sendLocationRequest,
     sendProductCardMessage,
     sendSingleProductMessage,
-    sendMultiProductMessage
+    sendMultiProductMessage,
+    sendCarouselMessage,
+    syncProductToMeta
 };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit2, Trash2, Plus, Type, IndianRupee, AlignLeft, Image as ImageIcon, ListFilter } from 'lucide-react';
+import { Edit2, Trash2, Plus, Type, IndianRupee, AlignLeft, Image as ImageIcon, ListFilter, Fingerprint } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
@@ -9,7 +9,7 @@ export default function Products() {
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
     const [categories, setCategories] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ id: null, name: '', price: '', categoryId: '', description: '', image: '', stock: 50 });
+    const [formData, setFormData] = useState({ id: null, name: '', price: '', categoryId: '', description: '', image: '', stock: 50, retailerId: '' });
     const navigate = useNavigate();
 
     const fetchProducts = async (page = 1) => {
@@ -70,7 +70,7 @@ export default function Products() {
         if (item) {
             setFormData({ ...item });
         } else {
-            setFormData({ id: null, name: '', price: '', categoryId: categories[0]?.id || '', description: '', image: '', stock: 50 });
+            setFormData({ id: null, name: '', price: '', categoryId: categories[0]?.id || '', description: '', image: '', stock: 50, retailerId: '' });
         }
         setModalOpen(true);
     };
@@ -170,6 +170,16 @@ export default function Products() {
                                     <ImageIcon className="input-icon" size={18} />
                                     <input type="url" placeholder="https://..." value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} required />
                                 </div>
+                            </div>
+                            <div className="input-group has-icon">
+                                <label>Retailer ID (Meta Content ID)</label>
+                                <div className="input-wrapper">
+                                    <Fingerprint className="input-icon" size={18} />
+                                    <input type="text" placeholder="e.g. oiv7t6taic" value={formData.retailerId} onChange={e => setFormData({ ...formData, retailerId: e.target.value })} />
+                                </div>
+                                <small style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                                    Must match the "Content ID" in Meta Commerce Manager
+                                </small>
                             </div>
                             <div className="modal-actions">
                                 <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>

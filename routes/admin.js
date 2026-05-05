@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { Product, Category, Order, Customer, Branch, Tenant, CustomerLog } = require('../models');
-const { sendTextMessage, sendButtonMessage } = require('../services/whatsappService');
+const { sendTextMessage, sendButtonMessage, syncProductToMeta } = require('../services/whatsappService');
 const { Op, fn, col, literal } = require('sequelize');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_wstore';
@@ -15,7 +15,8 @@ const getTenantConfig = async (tenantId) => {
     const tenant = await Tenant.findByPk(tenantId);
     return tenant ? {
         phoneNumberId: tenant.phoneNumberId,
-        whatsappToken: tenant.whatsappToken
+        whatsappToken: tenant.whatsappToken,
+        catalogId: tenant.catalogId
     } : {};
 };
 
@@ -201,13 +202,48 @@ router.get('/products', async (req, res) => {
 router.post('/products', async (req, res) => {
     const data = { ...req.body };
     if (req.user.role === 'branch') data.branchId = req.user.branchId;
-    const item = await Product.create(data);
-    res.json(item);
+
+    // 1. Auto-generate retailerId if missing to prevent Sequelize errors
+    if (!data.retailerId) {
+        // Use a clean, URL-safe ID for Meta
+        data.retailerId = `wstore_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    }
+
+    try {
+        const item = await Product.create(data);
+
+        // 2. Auto-sync to Meta Catalog
+        try {
+            const tenantId = req.user.tenantId || (await Branch.findByPk(item.branchId))?.tenantId;
+            const config = await getTenantConfig(tenantId);
+            if (config.catalogId) {
+                await syncProductToMeta(item, config);
+            }
+        } catch (syncError) {
+            console.error("Meta auto-sync failed:", syncError.message);
+        }
+
+        res.json(item);
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
 });
 router.put('/products/:id', async (req, res) => {
     const item = await Product.findByPk(req.params.id);
     if (item) {
         await item.update(req.body);
+
+        // Auto-sync update to Meta Catalog
+        try {
+            const tenantId = req.user.tenantId || (await Branch.findByPk(item.branchId))?.tenantId;
+            const config = await getTenantConfig(tenantId);
+            if (config.catalogId) {
+                await syncProductToMeta(item, config);
+            }
+        } catch (syncError) {
+            console.error("Meta auto-sync failed (update):", syncError.message);
+        }
+
         res.json(item);
     } else res.status(404).send();
 });
