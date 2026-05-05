@@ -8,7 +8,7 @@ export default function Dashboard() {
     const [analytics, setAnalytics] = useState(null);
     const [tenant, setTenant] = useState(null);
     const [stats, setStats] = useState({ categories: 0, products: 0 });
-    const [configForm, setConfigForm] = useState({ wabaId: '', phoneNumberId: '', whatsappToken: '' });
+    const [configForm, setConfigForm] = useState({ wabaId: '', phoneNumberId: '', whatsappToken: '', displayMode: 'catalog' });
     const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
     const navigate = useNavigate();
 
@@ -44,7 +44,8 @@ export default function Dashboard() {
                     setConfigForm({ 
                         wabaId: tData.wabaId || '', 
                         phoneNumberId: tData.phoneNumberId || '', 
-                        whatsappToken: tData.whatsappToken || '' 
+                        whatsappToken: tData.whatsappToken || '',
+                        displayMode: tData.displayMode || 'catalog'
                     });
                 }
             }
@@ -145,7 +146,7 @@ export default function Dashboard() {
                                 WhatsApp Integration Settings
                             </h3>
                         </div>
-                        <form onSubmit={handleUpdateConfig} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end' }}>
+                        <form onSubmit={handleUpdateConfig} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', alignItems: 'end' }}>
                             <div className="input-group" style={{ marginBottom: 0 }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Settings2 size={14}/> WABA ID</label>
                                 <input type="text" placeholder="109283..." value={configForm.wabaId} onChange={e => setConfigForm({...configForm, wabaId: e.target.value})} style={{ padding: '10px 14px' }} />
@@ -158,9 +159,18 @@ export default function Dashboard() {
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Key size={14}/> Access Token</label>
                                 <input type="password" placeholder="System User Token..." value={configForm.whatsappToken} onChange={e => setConfigForm({...configForm, whatsappToken: e.target.value})} style={{ padding: '10px 14px' }} />
                             </div>
-                            <button type="submit" className="btn-primary" disabled={isUpdatingConfig} style={{ height: '42px', padding: '0 24px', whiteSpace: 'nowrap' }}>
-                                {isUpdatingConfig ? 'Saving...' : <><Save size={16}/> Save Updates</>}
-                            </button>
+                            <div className="input-group" style={{ marginBottom: 0 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><ShoppingCart size={14}/> Display Mode</label>
+                                <select value={configForm.displayMode} onChange={e => setConfigForm({...configForm, displayMode: e.target.value})} style={{ padding: '10px 14px' }}>
+                                    <option value="catalog">Meta Catalog (Native)</option>
+                                    <option value="carousel">Carousel (Custom)</option>
+                                </select>
+                            </div>
+                            <div style={{ gridColumn: 'span 1' }}>
+                                <button type="submit" className="btn-primary" disabled={isUpdatingConfig} style={{ height: '42px', padding: '0 24px', whiteSpace: 'nowrap', width: '100%' }}>
+                                    {isUpdatingConfig ? 'Saving...' : <><Save size={16}/> Save Updates</>}
+                                </button>
+                            </div>
                         </form>
                     </div>
                 )}

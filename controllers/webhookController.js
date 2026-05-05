@@ -61,10 +61,22 @@ const extractTextFromMessage = (message) => {
             return message.interactive.button_reply.id;
         } else if (message.interactive?.list_reply) {
             return message.interactive.list_reply.id;
+        } else if (message.interactive?.nfm_reply) {
+            // Carousel buttons often return the ID in nfm_reply.response_json
+            try {
+                const response = JSON.parse(message.interactive.nfm_reply.response_json);
+                return response.id || '';
+            } catch (e) {
+                return '';
+            }
+        } else if (message.interactive?.action?.button_reply) {
+            return message.interactive.action.button_reply.id;
         }
+    } else if (message.type === 'button') {
+        return message.button?.payload || '';
     } else if (message.type === 'location') {
         const loc = message.location;
-        return `[LOCATION] https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
+        return `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
     } else if (message.type === 'order') {
         return 'native_order';
     }
@@ -156,7 +168,7 @@ const handleSearching = async (from, text, session) => {
         return await sendButtonMessage(from, `❌ No products found matching "*${text}*". Try another name or browse our categories.`, [{ id: 'search_mode', title: 'Search Again' }, { id: 'shop', title: 'Browse Store' }], session.config);
     }
 
-    if (session.catalogId) {
+    if (session.catalogId && session.config.displayMode !== 'carousel') {
         const uniqueRetailerIds = new Set();
         const productItems = [];
         searchResults.forEach(p => {
@@ -444,7 +456,7 @@ const handleCategorySelection = async (from, text, session) => {
         });
 
         console.log(`[DEBUG] Category Selection - Catalog ID: ${session.catalogId}`);
-        if (session.catalogId) {
+        if (session.catalogId && session.config.displayMode !== 'carousel') {
             const uniqueRetailerIds = new Set();
             const productItems = [];
 
@@ -541,7 +553,7 @@ const handleProductSelection = async (from, text, session) => {
         session.state = 'VIEWING_PRODUCT';
         session.productId = selectedProduct.id;
 
-        if (session.catalogId) {
+        if (session.catalogId && session.config.displayMode !== 'carousel') {
             await sendSingleProductMessage(from, session.catalogId, selectedProduct.retailerId, `🔥 ${selectedProduct.name}`, 'WStore 🛍️', session.config);
         } else {
             await sendProductCardMessage(from, selectedProduct, session.config);
@@ -774,7 +786,8 @@ const receiveWebhook = async (req, res) => {
 
         const tenantConfig = {
             phoneNumberId: tenant.phoneNumberId,
-            whatsappToken: tenant.whatsappToken
+            whatsappToken: tenant.whatsappToken,
+            displayMode: tenant.displayMode || 'catalog'
         };
 
         const tenantBranchIds = (await Branch.findAll({ where: { tenantId: tenant.id }, attributes: ['id'] })).map(b => b.id);

@@ -281,9 +281,8 @@ router.post('/orders', async (req, res) => {
 
 router.get('/orders', async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const offset = (page - 1) * limit;
+        const { page = 1, limit = 10, status, branchId, search, startDate, endDate } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
 
         const where = await req.getScope();
 

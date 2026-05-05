@@ -36,6 +36,10 @@ module.exports = (sequelize, DataTypes) => {
     catalogId: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    displayMode: {
+      type: DataTypes.STRING,
+      defaultValue: 'catalog'
     }
   }, {
     sequelize,

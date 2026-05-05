@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PackageOpen, Plus, User, MapPin, Trash2, IndianRupee, Copy, Check, Eye } from 'lucide-react';
+import { PackageOpen, Plus, User, MapPin, Trash2, IndianRupee, Copy, Check, Eye, Search, Filter, Calendar, Clock, X } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
@@ -32,7 +32,7 @@ export default function Orders() {
     const fetchOrders = async (page = 1) => {
         const branchId = localStorage.getItem('selectedBranchId') || '';
         let url = `${API_ENDPOINTS.ORDERS}?page=${page}&limit=10&branchId=${branchId}`;
-        
+
         if (filters.status) url += `&status=${filters.status}`;
         if (filters.search) url += `&search=${filters.search}`;
         if (filters.startDate) url += `&startDate=${filters.startDate}`;
@@ -156,59 +156,72 @@ export default function Orders() {
                         <button className="btn-primary" onClick={() => setModalOpen(true)}><Plus size={18} /> Create Manual Order</button>
                     </div>
 
-                    <div className="filters-container" style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-                        gap: '15px', 
-                        background: 'rgba(0,0,0,0.02)', 
-                        padding: '20px', 
-                        borderRadius: '12px',
-                        border: '1px solid var(--border)'
-                    }}>
-                        <div className="filter-group">
-                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>Search</label>
-                            <input 
-                                type="text" 
-                                placeholder="Order ID or Phone..." 
-                                value={filters.search} 
-                                onChange={e => setFilters({ ...filters, search: e.target.value })} 
-                                style={{ width: '100%' }}
-                            />
+                    <div className="filters-card">
+                        <div className="filters-header">
+                            <Filter size={16} className="vibrant-icon" />
+                            <h3>Filter Orders</h3>
                         </div>
-                        <div className="filter-group">
-                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>Status</label>
-                            <select 
-                                value={filters.status} 
-                                onChange={e => setFilters({ ...filters, status: e.target.value })}
-                                style={{ width: '100%' }}
+                        
+                        <div className="filters-grid-modern">
+                            <div className="filter-item-modern">
+                                <label>SEARCH</label>
+                                <div className="input-container-modern">
+                                    <Search className="input-icon-modern" size={18} />
+                                    <input 
+                                        type="text"
+                                        className="input-modern"
+                                        placeholder="ID, name, or phone..."
+                                        value={filters.search}
+                                        onChange={e => setFilters({ ...filters, search: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="filter-item-modern small">
+                                <label>STATUS</label>
+                                <div className="input-container-modern">
+                                    <Clock className="input-icon-modern" size={18} />
+                                    <select 
+                                        className="input-modern"
+                                        style={{ appearance: 'none', paddingRight: '30px' }}
+                                        value={filters.status}
+                                        onChange={e => setFilters({ ...filters, status: e.target.value })}
+                                    >
+                                        <option value="">All Statuses</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="shipped">Shipped</option>
+                                        <option value="delivered">Delivered</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="filter-item-modern">
+                                <label>DATE RANGE</label>
+                                <div className="date-range-group">
+                                    <Calendar style={{ marginLeft: '12px', color: '#9ca3af' }} size={16} />
+                                    <input 
+                                        type="date"
+                                        className="date-input-minimal"
+                                        value={filters.startDate}
+                                        onChange={e => setFilters({ ...filters, startDate: e.target.value })}
+                                    />
+                                    <span className="date-separator">to</span>
+                                    <input 
+                                        type="date"
+                                        className="date-input-minimal"
+                                        value={filters.endDate}
+                                        onChange={e => setFilters({ ...filters, endDate: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <button 
+                                className="btn-secondary-modern"
+                                onClick={() => setFilters({ status: '', search: '', startDate: '', endDate: '' })}
                             >
-                                <option value="">All Statuses</option>
-                                <option value="pending">Pending</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
-                        </div>
-                        <div className="filter-group">
-                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>From Date</label>
-                            <input 
-                                type="date" 
-                                value={filters.startDate} 
-                                onChange={e => setFilters({ ...filters, startDate: e.target.value })} 
-                                style={{ width: '100%' }}
-                            />
-                        </div>
-                        <div className="filter-group">
-                            <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '5px', display: 'block' }}>To Date</label>
-                            <input 
-                                type="date" 
-                                value={filters.endDate} 
-                                onChange={e => setFilters({ ...filters, endDate: e.target.value })} 
-                                style={{ width: '100%' }}
-                            />
-                        </div>
-                        <div className="filter-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                            <button className="btn-outline w-full" onClick={() => setFilters({ status: '', search: '', startDate: '', endDate: '' })}>Clear Filters</button>
+                                <X size={16} /> Clear Filters
+                            </button>
                         </div>
                     </div>
                 </div>
