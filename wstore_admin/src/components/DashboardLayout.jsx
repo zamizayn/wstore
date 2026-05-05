@@ -102,7 +102,9 @@ export default function DashboardLayout() {
                     {role === 'superadmin' && (
                         <li><NavLink to="/admin/tenants" className={({ isActive }) => isActive ? 'active' : ''}><Building2 size={18} /> <span>Tenants</span></NavLink></li>
                     )}
-                    <li><NavLink to="/admin/branches" className={({ isActive }) => isActive ? 'active' : ''}><MapPin size={18} /> <span>Branches</span></NavLink></li>
+                    {role !== 'branch' && (
+                        <li><NavLink to="/admin/branches" className={({ isActive }) => isActive ? 'active' : ''}><MapPin size={18} /> <span>Branches</span></NavLink></li>
+                    )}
                     <li><NavLink to="/admin/categories" className={({ isActive }) => isActive ? 'active' : ''}><Tags size={18} /> <span>Categories</span></NavLink></li>
                     <li><NavLink to="/admin/products" className={({ isActive }) => isActive ? 'active' : ''}><ShoppingBag size={18} /> <span>Products</span></NavLink></li>
                     <li><NavLink to="/admin/inventory" className={({ isActive }) => isActive ? 'active' : ''}><Boxes size={18} /> <span>Inventory</span></NavLink></li>

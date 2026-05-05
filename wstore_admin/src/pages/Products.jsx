@@ -8,13 +8,21 @@ export default function Products() {
     const [products, setProducts] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
     const [categories, setCategories] = useState([]);
+    const [tenants, setTenants] = useState([]);
+    const [selectedTenant, setSelectedTenant] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [formData, setFormData] = useState({ id: null, name: '', price: '', categoryId: '', description: '', image: '', stock: 50, retailerId: '' });
     const navigate = useNavigate();
 
-    const fetchProducts = async (page = 1) => {
+    const isAdmin = localStorage.getItem('adminRole') === 'superadmin';
+
+    const fetchProducts = async (page = 1, overrideTenant = selectedTenant) => {
         const branchId = localStorage.getItem('selectedBranchId') || '';
-        const res = await fetch(`${API_ENDPOINTS.PRODUCTS}?page=${page}&limit=10&branchId=${branchId}`, { headers: getHeaders() });
+        let url = `${API_ENDPOINTS.PRODUCTS}?page=${page}&limit=10&branchId=${branchId}`;
+        if (isAdmin && overrideTenant) {
+            url += `&tenantId=${overrideTenant}`;
+        }
+        const res = await fetch(url, { headers: getHeaders() });
         if (res.status === 401) return navigate('/login');
         const result = await res.json();
         setProducts(result.data);
@@ -28,9 +36,21 @@ export default function Products() {
         setCategories(data.data || data); // Handle both formats
     };
 
+    const fetchTenants = async () => {
+        if (!isAdmin) return;
+        try {
+            const res = await fetch(API_ENDPOINTS.TENANTS, { headers: getHeaders() });
+            const data = await res.json();
+            setTenants(data.data || data);
+        } catch (e) {
+            console.error('Error fetching tenants', e);
+        }
+    };
+
     useEffect(() => {
         fetchProducts();
         fetchCategories();
+        fetchTenants();
     }, []);
 
     const handlePageChange = (newPage) => {
@@ -81,8 +101,26 @@ export default function Products() {
                 <h1>Products</h1>
             </header>
             <div className="content-view active">
-                <div className="action-bar">
+                <div className="action-bar" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                     <button className="btn-primary" onClick={() => openModal()}><Plus size={18} /> Add Product</button>
+                    {isAdmin && (
+                        <div className="input-wrapper" style={{ minWidth: '220px', position: 'relative' }}>
+                            <select
+                                className="input-modern"
+                                style={{ paddingLeft: '12px', height: '40px', width: '100%', appearance: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                                value={selectedTenant}
+                                onChange={(e) => {
+                                    setSelectedTenant(e.target.value);
+                                    fetchProducts(1, e.target.value);
+                                }}
+                            >
+                                <option value="">All Tenants</option>
+                                {tenants.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
                 <div className="table-container">
                     <table>

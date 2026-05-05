@@ -111,7 +111,17 @@ const authenticateToken = (req, res, next) => {
 
         // Helper to get scoping where clause
         req.getScope = async (existingWhere = {}) => {
-            if (req.user.role === 'superadmin') return existingWhere;
+            if (req.user.role === 'superadmin') {
+                if (req.query.tenantId) {
+                    const branches = await Branch.findAll({
+                        where: { tenantId: req.query.tenantId },
+                        attributes: ['id']
+                    });
+                    const branchIds = branches.map(b => b.id);
+                    return { ...existingWhere, branchId: { [Op.in]: branchIds } };
+                }
+                return existingWhere;
+            }
 
             if (req.user.role === 'tenant') {
                 // If a specific branch is requested via query, and it belongs to this tenant, use it
@@ -722,6 +732,31 @@ router.delete('/branches/:id', async (req, res) => {
         await branch.destroy();
         res.json({ success: true });
     } else res.status(404).send();
+});
+
+router.put('/branches/:id', async (req, res) => {
+    try {
+        if (!['superadmin', 'tenant'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const branch = await Branch.findByPk(req.params.id);
+        if (!branch) return res.status(404).json({ error: 'Branch not found' });
+
+        if (req.user.role === 'tenant' && branch.tenantId !== req.user.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const updateData = { ...req.body };
+        if (!updateData.password) {
+            delete updateData.password;
+        }
+
+        await branch.update(updateData);
+        res.json(branch);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;

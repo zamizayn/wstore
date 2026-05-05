@@ -112,27 +112,120 @@ const handleHomeMenu = async (from, session, tenant, customer) => {
     ], session.config);
 };
 
-const handleTrackOrder = async (from, session, latestOrder) => {
-    if (!latestOrder) {
+const handleTrackOrder = async (from, session) => {
+    const recentOrders = await Order.findAll({
+        where: { customerPhone: from },
+        order: [['createdAt', 'DESC']],
+        limit: 5
+    });
+
+    if (recentOrders.length === 0) {
         return await sendButtonMessage(from, "You haven't placed any orders yet. Start shopping! 🛍️", [{ id: 'shop', title: 'Shop Now' }], session.config);
+    }
+
+    if (recentOrders.length === 1) {
+        // Only one order, show it directly
+        return await handleViewOrder(from, `view_order_${recentOrders[0].id}`, session);
+    }
+
+    // Multiple orders, show a list
+    const rows = recentOrders.map(order => {
+        const statusEmoji = { 'pending': '⏳', 'shipped': '🚚', 'delivered': '✅', 'cancelled': '❌' }[order.status] || '📦';
+        return {
+            id: `view_order_${order.id}`,
+            title: `Order #${order.id} ${statusEmoji}`,
+            description: `₹${order.total} • ${new Date(order.createdAt).toLocaleDateString()}`
+        };
+    });
+
+    await sendListMessage(
+        from,
+        "Here are your most recent orders. Select an order to view its details :",
+        "Select Order",
+        [{ title: "Recent Orders", rows }],
+        session.config
+    );
+};
+
+const handleViewOrder = async (from, text, session) => {
+    const orderId = text.replace('view_order_', '');
+    const order = await Order.findByPk(orderId);
+
+    if (!order || order.customerPhone !== from) {
+        return await sendTextMessage(from, "❌ Order not found.", session.config);
     }
 
     const statusEmoji = {
         'pending': '⏳',
         'shipped': '🚚',
-        'delivered': '✅'
-    }[latestOrder.status] || '📦';
+        'delivered': '✅',
+        'cancelled': '❌'
+    }[order.status] || '📦';
 
-    const trackingText = `📑 *Order Status*\nOrder #${latestOrder.id}\nStatus: ${latestOrder.status.toUpperCase()} ${statusEmoji}\nTotal: ₹${latestOrder.total}\nPlaced on: ${new Date(latestOrder.createdAt).toLocaleDateString()}`;
+    const trackingText = `📑 *Order Status*\nOrder #${order.id}\nStatus: ${order.status.toUpperCase()} ${statusEmoji}\nTotal: ₹${order.total}\nPlaced on: ${new Date(order.createdAt).toLocaleDateString()}`;
 
     const buttons = [{ id: 'menu', title: 'Back to Menu' }];
-    if (latestOrder.status === 'delivered') {
-        buttons.push({ id: `rate_${latestOrder.id}`, title: 'Rate Order ⭐' });
+    if (order.status === 'delivered') {
+        buttons.push({ id: `rate_${order.id}`, title: 'Rate Order ⭐' });
     } else {
         buttons.push({ id: 'shop', title: 'Shop More' });
     }
 
+    // Cancellation logic: within 5 minutes and pending state
+    const fiveMinutes = 5 * 60 * 1000;
+    const isWithinFiveMinutes = (new Date() - new Date(order.createdAt)) <= fiveMinutes;
+
+    if (order.status === 'pending' && isWithinFiveMinutes) {
+        buttons.push({ id: `cancel_order_${order.id}`, title: 'Cancel Order ❌' });
+    }
+
     await sendButtonMessage(from, trackingText, buttons, session.config);
+};
+
+const handleCancelOrder = async (from, text, session) => {
+    const orderId = text.replace('cancel_order_', '');
+    const order = await Order.findByPk(orderId);
+
+    if (!order) {
+        return await sendTextMessage(from, "❌ Order not found.", session.config);
+    }
+
+    if (order.customerPhone !== from) {
+        return await sendTextMessage(from, "❌ Unauthorized request.", session.config);
+    }
+
+    const fiveMinutes = 5 * 60 * 1000;
+    const isWithinFiveMinutes = (new Date() - new Date(order.createdAt)) <= fiveMinutes;
+
+    if (order.status !== 'pending' || !isWithinFiveMinutes) {
+        return await sendButtonMessage(
+            from,
+            "❌ Order cannot be cancelled anymore. The cancellation window has passed or the order is already being processed.",
+            [{ id: 'track', title: 'Track Order' }],
+            session.config
+        );
+    }
+
+    order.status = 'cancelled';
+    await order.save();
+
+    // Optionally restock the items
+    if (order.items && Array.isArray(order.items)) {
+        for (const item of order.items) {
+            try {
+                await Product.increment('stock', { by: item.quantity, where: { id: item.id } });
+            } catch (e) {
+                console.error(`Restock error for ${item.name}:`, e.message);
+            }
+        }
+    }
+
+    await sendButtonMessage(
+        from,
+        `✅ Your order #${order.id} has been successfully cancelled.`,
+        [{ id: 'shop', title: 'Shop Now' }],
+        session.config
+    );
 };
 
 const handleSearchMode = async (from, session) => {
@@ -665,7 +758,23 @@ const handleCheckout = async (from, session) => {
 };
 
 const handleAddressCollection = async (from, text, session) => {
-    const address = text;
+    session.address = text;
+    session.state = 'CHECKOUT_PAYMENT';
+
+    await sendButtonMessage(
+        from,
+        '💳 How would you like to pay?',
+        [
+            { id: 'pay_cod', title: 'Cash on Delivery' },
+            { id: 'pay_online', title: 'Online Payment' }
+        ],
+        session.config
+    );
+};
+
+const handlePaymentSelection = async (from, text, session) => {
+    const paymentMethod = text === 'pay_cod' ? 'Cash on Delivery' : 'Online Payment';
+    const address = session.address || 'N/A';
     const userCart = carts[from] || [];
     let total = 0;
 
@@ -697,10 +806,11 @@ const handleAddressCollection = async (from, text, session) => {
 
     carts[from] = [];
     session.state = 'ORDER_CONFIRMED';
+    delete session.address; // Clean up session
 
     await sendButtonMessage(
         from,
-        `🎉 Order #${savedOrder ? savedOrder.id : ''} placed successfully!\n\n📍 Address:\n${address}\n\n💰 Total:\n₹${total}\n\n🚚 Delivery will start soon.`,
+        `🎉 Order #${savedOrder ? savedOrder.id : ''} placed successfully!\n\n📍 Address:\n${address}\n\n💳 Payment:\n${paymentMethod}\n\n💰 Total:\n₹${total}\n\n🚚 Delivery will start soon.`,
         [{ id: 'shop', title: 'Shop Again' }],
         session.config
     );
@@ -798,16 +908,18 @@ const receiveWebhook = async (req, res) => {
             }
         });
 
-        const latestOrder = await Order.findOne({
-            where: { customerPhone: from },
-            order: [['createdAt', 'DESC']]
-        });
+        // const latestOrder = await Order.findOne({
+        //     where: { customerPhone: from },
+        //     order: [['createdAt', 'DESC']]
+        // });
+
+        const autoBranchId = tenantBranchIds.length === 1 ? tenantBranchIds[0] : null;
 
         if (!sessions[from]) {
             sessions[from] = {
                 state: 'START',
                 tenantId: tenant.id,
-                branchId: customer?.branchId || null,
+                branchId: customer?.branchId || autoBranchId,
                 config: tenantConfig,
                 catalogId: tenant.catalogId,
                 lastInteraction: new Date()
@@ -817,8 +929,8 @@ const receiveWebhook = async (req, res) => {
             sessions[from].config = tenantConfig;
             sessions[from].catalogId = tenant.catalogId;
             sessions[from].lastInteraction = new Date();
-            if (!sessions[from].branchId && customer?.branchId) {
-                sessions[from].branchId = customer.branchId;
+            if (!sessions[from].branchId) {
+                sessions[from].branchId = customer?.branchId || autoBranchId;
             }
         }
 
@@ -828,7 +940,8 @@ const receiveWebhook = async (req, res) => {
             await Customer.upsert({
                 phone: from,
                 name: profileName || (customer ? customer.name : ''),
-                lastInteraction: new Date()
+                lastInteraction: new Date(),
+                branchId: session.branchId || null
             });
         } catch (e) {
             console.error('Customer tracking error:', e.message);
@@ -844,12 +957,17 @@ const receiveWebhook = async (req, res) => {
             await logCustomerActivity(from, tenant.id, session.branchId, 'MENU_VIEWED');
             await handleHomeMenu(from, session, tenant, customer);
         } else if (text === 'track' || text === 'status') {
-            await handleTrackOrder(from, session, latestOrder);
+            await handleTrackOrder(from, session);
+        } else if (text.startsWith('view_order_')) {
+            await handleViewOrder(from, text, session);
         } else if (text === 'search_mode') {
             await handleSearchMode(from, session);
         } else if (text === 'shop' || text === 'change_category') {
             await logCustomerActivity(from, tenant.id, session.branchId, 'SHOP_VIEWED');
             await handleShop(from, text, session, tenant, customer);
+        } else if (text.startsWith('cancel_order_')) {
+            await logCustomerActivity(from, tenant.id, session.branchId, 'ORDER_CANCELLED');
+            await handleCancelOrder(from, text, session);
         } else if (text === 'change_branch') {
             await handleChangeBranch(from, session);
         } else if (text.startsWith('branch_')) {
@@ -884,6 +1002,8 @@ const receiveWebhook = async (req, res) => {
             await handleCheckout(from, session);
         } else if (session.state === 'CHECKOUT_ADDRESS') {
             await handleAddressCollection(from, text, session);
+        } else if (session.state === 'CHECKOUT_PAYMENT') {
+            await handlePaymentSelection(from, text, session);
         } else {
             await handleDefault(from, session);
         }

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { MapPin, Plus, Trash2, Shield, User, Lock, Store } from 'lucide-react';
+import { MapPin, Plus, Trash2, Shield, User, Lock, Store, Edit2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
 export default function Branches() {
     const [branches, setBranches] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ name: '', username: '', password: '' });
+    const [formData, setFormData] = useState({ id: null, name: '', username: '', password: '' });
     const location = useLocation();
 
     const fetchBranches = async () => {
@@ -30,16 +30,30 @@ export default function Branches() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const res = await fetch(API_ENDPOINTS.BRANCHES, {
-            method: 'POST',
+        const url = formData.id ? `${API_ENDPOINTS.BRANCHES}/${formData.id}` : API_ENDPOINTS.BRANCHES;
+        const method = formData.id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+            method,
             headers: getHeaders(),
             body: JSON.stringify(formData)
         });
+
         if (res.ok) {
             setModalOpen(false);
-            setFormData({ name: '', username: '', password: '' });
+            setFormData({ id: null, name: '', username: '', password: '' });
             fetchBranches();
         }
+    };
+
+    const openModal = (branch = null) => {
+        if (branch) {
+            // Password won't be prefilled for security, unless your API sends it back. Usually it's blank on edit.
+            setFormData({ id: branch.id, name: branch.name, username: branch.username, password: '' });
+        } else {
+            setFormData({ id: null, name: '', username: '', password: '' });
+        }
+        setModalOpen(true);
     };
 
     const handleDelete = async (id) => {
@@ -59,7 +73,7 @@ export default function Branches() {
 
             <div className="content-view active">
                 <div className="action-bar">
-                    <button className="btn-primary" onClick={() => setModalOpen(true)}>
+                    <button className="btn-primary" onClick={() => openModal()}>
                         <Plus size={18} /> Add New Branch
                     </button>
                 </div>
@@ -76,7 +90,10 @@ export default function Branches() {
                                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: #{branch.id}</span>
                                     </div>
                                 </div>
-                                <button className="action-btn delete" onClick={() => handleDelete(branch.id)}><Trash2 size={16} /></button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button className="action-btn edit" onClick={() => openModal(branch)}><Edit2 size={16} /></button>
+                                    <button className="action-btn delete" onClick={() => handleDelete(branch.id)}><Trash2 size={16} /></button>
+                                </div>
                             </div>
 
                             <div style={{ background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
@@ -104,7 +121,7 @@ export default function Branches() {
                     <div className="modal">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                             <Shield size={24} className="text-accent" />
-                            <h3 style={{ margin: 0 }}>Create New Branch</h3>
+                            <h3 style={{ margin: 0 }}>{formData.id ? 'Edit Branch' : 'Create New Branch'}</h3>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="input-group">
@@ -116,12 +133,12 @@ export default function Branches() {
                                 <input type="text" placeholder="Branch login ID" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} required />
                             </div>
                             <div className="input-group">
-                                <label>Password</label>
-                                <input type="password" placeholder="Branch access key" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} required />
+                                <label>Password {formData.id && <span style={{ fontSize: '12px', color: '#9ca3af' }}>(Leave blank to keep current)</span>}</label>
+                                <input type="password" placeholder={formData.id ? "Enter new password" : "Branch access key"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!formData.id} />
                             </div>
                             <div className="modal-actions">
                                 <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary">Provision Branch</button>
+                                <button type="submit" className="btn-primary">{formData.id ? 'Save Changes' : 'Provision Branch'}</button>
                             </div>
                         </form>
                     </div>
