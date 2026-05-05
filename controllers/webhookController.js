@@ -246,10 +246,9 @@ const handleChangeBranch = async (from, session) => {
 };
 
 const handleShop = async (from, text, session, tenant, customer) => {
-    console.log(`[Shop] Flow started for ${from}`);
-
-    if (text === 'change_category') {
+    if (text === 'shop' || text === 'change_category') {
         session.categoryId = null;
+        session.page = 1;
     }
 
     if (session.categoryId) {
@@ -481,9 +480,11 @@ const handleCategorySelection = async (from, text, session) => {
                 optionRows.push({ id: `prev_page_${category.id}`, title: '⬅️ Previous Page', description: 'Go back' });
             }
 
-            if (optionRows.length > 0) {
-                await sendListMessage(from, "⚙️ *More Options*", "Options", [{ title: "Options", rows: optionRows }], session.config);
-            }
+            optionRows.push({ id: `sort_toggle_${category.id}`, title: '🔃 Sort By Price', description: 'Switch between High/Low' });
+            optionRows.push({ id: 'change_category', title: '📂 Change Category', description: 'Browse other collections' });
+            optionRows.push({ id: 'menu', title: '🏠 Back to Home', description: 'Return to main menu' });
+
+            await sendListMessage(from, "⚙️ *Shopping Options*", "Options", [{ title: "Options", rows: optionRows }], session.config);
         } else {
             // Fallback for tenants without a catalog
             if (catProducts.length === 1) {
@@ -830,19 +831,6 @@ const receiveWebhook = async (req, res) => {
             await handleTrackOrder(from, session, latestOrder);
         } else if (text === 'search_mode') {
             await handleSearchMode(from, session);
-        } else if (session.state === 'SEARCHING') {
-            if (text !== 'menu' && text !== 'shop') {
-                await logCustomerActivity(from, tenant.id, session.branchId, 'SEARCHED', { query: text });
-            }
-            const result = await handleSearching(from, text, session);
-            if (result === 'RE_ROUTE') {
-                if (text === 'menu') await handleHomeMenu(from, session, tenant, customer);
-                else if (text === 'shop') await handleShop(from, text, session, tenant, customer);
-            }
-        } else if (text.startsWith('rate_')) {
-            await handleRating(from, text, session);
-        } else if (session.state === 'COLLECTING_FEEDBACK' && text.startsWith('star_')) {
-            await handleCollectingFeedback(from, text, session);
         } else if (text === 'shop' || text === 'change_category') {
             await logCustomerActivity(from, tenant.id, session.branchId, 'SHOP_VIEWED');
             await handleShop(from, text, session, tenant, customer);
