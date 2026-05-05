@@ -32,6 +32,10 @@ module.exports = (sequelize, DataTypes) => {
     webhooksEnabled: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
+    },
+    catalogId: {
+      type: DataTypes.STRING,
+      allowNull: true
     }
   }, {
     sequelize,

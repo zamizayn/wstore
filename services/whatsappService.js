@@ -60,8 +60,8 @@ const sendListMessage = async (to, bodyText, buttonText, sections, config = {}) 
             interactive: {
                 type: 'list',
                 body: { text: bodyText },
-                action: { 
-                    button: (buttonText || 'Select').slice(0, 20), 
+                action: {
+                    button: (buttonText || 'Select').slice(0, 20),
                     sections: sections.map(s => ({
                         ...s,
                         title: (s.title || '').slice(0, 24)
@@ -148,6 +148,56 @@ const sendProductCardMessage = async (to, product, config = {}) => {
     }
 };
 
+const sendSingleProductMessage = async (to, catalogId, productRetailerId, bodyText = 'Here is the product you requested', footerText = 'WStore 🛍️', config = {}) => {
+    try {
+        await axios.post(getUrl(config), {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'interactive',
+            interactive: {
+                type: 'product',
+                body: { text: bodyText },
+                footer: { text: footerText },
+                action: {
+                    catalog_id: catalogId,
+                    product_retailer_id: productRetailerId
+                }
+            }
+        }, { headers: getHeaders(config) });
+    } catch (error) {
+        console.error('WhatsApp Single Product Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
+const sendMultiProductMessage = async (to, catalogId, headerText = 'Our Products', bodyText = 'Check out our latest collection', sections, config = {}) => {
+    try {
+        await axios.post(getUrl(config), {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'interactive',
+            interactive: {
+                type: 'product_list',
+                header: { type: 'text', text: headerText.slice(0, 60) },
+                body: { text: bodyText },
+                footer: { text: 'WStore 🛍️' },
+                action: {
+                    catalog_id: catalogId,
+                    sections: sections.map(s => ({
+                        title: (s.title || '').slice(0, 24),
+                        product_items: s.product_items
+                    }))
+                }
+            }
+        }, { headers: getHeaders(config) });
+    } catch (error) {
+        console.error('WhatsApp Multi Product Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
 module.exports = {
     sendTextMessage,
     sendButtonMessage,
@@ -155,5 +205,7 @@ module.exports = {
     sendImageMessage,
     sendVideoMessage,
     sendLocationRequest,
-    sendProductCardMessage
+    sendProductCardMessage,
+    sendSingleProductMessage,
+    sendMultiProductMessage
 };

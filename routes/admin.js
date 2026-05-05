@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { Product, Category, Order, Customer, Branch, Tenant } = require('../models');
+const { Product, Category, Order, Customer, Branch, Tenant, CustomerLog } = require('../models');
 const { sendTextMessage, sendButtonMessage } = require('../services/whatsappService');
 const { Op, fn, col, literal } = require('sequelize');
 
@@ -337,6 +337,19 @@ router.get('/customers/:phone/orders', async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
         res.json(orders);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+router.get('/customers/:phone/logs', async (req, res) => {
+    try {
+        const logs = await CustomerLog.findAll({
+            where: await req.getScope({ customerPhone: req.params.phone }),
+            order: [['createdAt', 'DESC']],
+            limit: 100
+        });
+        res.json(logs);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

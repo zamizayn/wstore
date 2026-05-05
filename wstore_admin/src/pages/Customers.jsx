@@ -11,6 +11,8 @@ export default function Customers() {
     const [modalOpen, setModalOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [historyOrders, setHistoryOrders] = useState([]);
+    const [logsOpen, setLogsOpen] = useState(false);
+    const [activityLogs, setActivityLogs] = useState([]);
     const [activeCustomer, setActiveCustomer] = useState(null);
     const [broadcastMsg, setBroadcastMsg] = useState('');
     const [sending, setSending] = useState(false);
@@ -35,6 +37,16 @@ export default function Customers() {
         setHistoryOrders(data);
         setActiveCustomer(customer);
         setHistoryOpen(true);
+    };
+
+    const fetchLogs = async (customer) => {
+        const res = await fetch(`${API_ENDPOINTS.CUSTOMERS}/${customer.phone}/logs`, {
+            headers: getHeaders()
+        });
+        const data = await res.json();
+        setActivityLogs(data);
+        setActiveCustomer(customer);
+        setLogsOpen(true);
     };
 
     useEffect(() => { fetchCustomers(); }, []);
@@ -127,7 +139,8 @@ export default function Customers() {
                                     <td>
                                         <div style={{display: 'flex', gap: '8px'}}>
                                             <button className="action-btn" onClick={(e) => { e.stopPropagation(); setSelectedPhones([cust.phone]); setModalOpen(true); }}>Send Offer</button>
-                                            <button className="action-btn edit" onClick={(e) => { e.stopPropagation(); fetchHistory(cust); }}><History size={14}/> History</button>
+                                            <button className="action-btn" onClick={(e) => { e.stopPropagation(); fetchLogs(cust); }}><History size={14}/> Logs</button>
+                                            <button className="action-btn edit" onClick={(e) => { e.stopPropagation(); fetchHistory(cust); }}><ShoppingBag size={14}/> Orders</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -214,6 +227,40 @@ export default function Customers() {
                         </div>
                         <div className="modal-actions">
                             <button className="btn-primary" onClick={() => { setHistoryOpen(false); setSelectedPhones([activeCustomer.phone]); setModalOpen(true); }}>Send Direct Offer</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {logsOpen && (
+                <div className="modal-overlay active">
+                    <div className="modal" style={{maxWidth: '800px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
+                            <h3>Activity Logs: {activeCustomer.name || activeCustomer.phone}</h3>
+                            <button className="btn-outline" style={{padding: '8px'}} onClick={() => setLogsOpen(false)}><X size={18}/></button>
+                        </div>
+                        
+                        <div className="table-container" style={{maxHeight: '400px', overflowY: 'auto'}}>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activityLogs.length === 0 ? (
+                                        <tr><td colSpan="3" style={{textAlign: 'center', padding: '20px'}}>No activity logged yet.</td></tr>
+                                    ) : activityLogs.map(log => (
+                                        <tr key={log.id}>
+                                            <td style={{whiteSpace: 'nowrap'}}>{new Date(log.createdAt).toLocaleString()}</td>
+                                            <td><span className="badge">{log.actionType}</span></td>
+                                            <td style={{fontSize: '12px', wordBreak: 'break-all'}}>{JSON.stringify(log.details)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
