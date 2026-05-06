@@ -29,9 +29,9 @@ export default function Landing() {
                         <h1>Turn WhatsApp into your <span className="gradient-text">Powerhouse Storefront.</span></h1>
                         <p className="hero-subtitle">The ultimate multi-tenant platform for businesses to launch, manage, and scale WhatsApp commerce in minutes.</p>
                         <div className="hero-actions">
-                            <Link to="/onboarding-steps" className="btn-primary-large">
+                            {/* <Link to="/onboarding-steps" className="btn-primary-large">
                                 Start Free Trial <ArrowRight size={20} />
-                            </Link>
+                            </Link> */}
                             <a href="#features" className="btn-outline-large">Watch Demo</a>
                         </div>
                         <div className="hero-stats">

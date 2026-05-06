@@ -12,6 +12,8 @@ import OnboardingWizard from './pages/OnboardingWizard';
 import Landing from './pages/Landing';
 import OnboardingGuide from './pages/OnboardingGuide';
 import Inventory from './pages/Inventory';
+import ProductSales from './pages/ProductSales';
+
 
 import Support from './pages/Support';
 
@@ -42,6 +44,7 @@ export default function App() {
                     <Route path="tenants" element={<Tenants />} />
                     <Route path="categories" element={<Categories />} />
                     <Route path="products" element={<Products />} />
+                    <Route path="product-sales" element={<ProductSales />} />
                     <Route path="inventory" element={<Inventory />} />
                     <Route path="orders" element={<Orders />} />
                     <Route path="customers" element={<Customers />} />

@@ -9,6 +9,7 @@ const ALL_PAGES = [
     { label: 'Tenants', path: '/admin/tenants', icon: Building2, keywords: ['tenant', 'business', 'accounts'], roles: ['superadmin'] },
     { label: 'Orders', path: '/admin/orders', icon: ShoppingCart, keywords: ['order', 'sales', 'transactions', 'purchase'], roles: ['superadmin', 'tenant', 'branch'] },
     { label: 'Products', path: '/admin/products', icon: ShoppingBag, keywords: ['product', 'item', 'catalog', 'goods'], roles: ['superadmin', 'tenant', 'branch'] },
+    { label: 'Product Sales', path: '/admin/product-sales', icon: TrendingUp, keywords: ['sales', 'analytics', 'revenue', 'performance', 'stats'], roles: ['superadmin', 'tenant', 'branch'] },
     { label: 'Categories', path: '/admin/categories', icon: Tags, keywords: ['category', 'group', 'tag', 'organize'], roles: ['superadmin', 'tenant', 'branch'] },
     { label: 'Customers', path: '/admin/customers', icon: Users, keywords: ['customer', 'user', 'audience', 'broadcast', 'whatsapp'], roles: ['superadmin', 'tenant', 'branch'] },
     { label: 'Inventory', path: '/admin/inventory', icon: Boxes, keywords: ['inventory', 'stock', 'warehouse', 'supply'], roles: ['superadmin', 'tenant', 'branch'] },
@@ -211,6 +212,9 @@ export default function DashboardLayout() {
                     </NavLink>
                     <NavLink to="/admin/products" className={({ isActive }) => `sidebar-nav-link ${isActive ? 'active' : ''}`}>
                         <ShoppingBag size={18} /> <span>Products</span>
+                    </NavLink>
+                    <NavLink to="/admin/product-sales" className={({ isActive }) => `sidebar-nav-link ${isActive ? 'active' : ''}`}>
+                        <TrendingUp size={18} /> <span>Product Sales</span>
                     </NavLink>
                     <NavLink to="/admin/categories" className={({ isActive }) => `sidebar-nav-link ${isActive ? 'active' : ''}`}>
                         <Tags size={18} /> <span>Categories</span>

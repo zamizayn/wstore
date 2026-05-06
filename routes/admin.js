@@ -714,6 +714,68 @@ router.get('/analytics', async (req, res) => {
     }
 });
 
+router.get('/product-sales', async (req, res) => {
+    try {
+        const { startDate, endDate, branchId, tenantId } = req.query;
+        const where = await req.getScope();
+        if (req.user.role === 'superadmin' && tenantId) where.tenantId = tenantId;
+
+        // 1. Fetch all products in the branch/tenant
+        const productWhere = { ...where };
+        if (branchId) productWhere.branchId = branchId;
+        const allProducts = await Product.findAll({
+            where: productWhere,
+            attributes: ['id', 'name', 'price'],
+            raw: true
+        });
+
+        // 2. Fetch orders to aggregate sales
+        const orderWhere = { ...where };
+        orderWhere.status = { [Op.ne]: 'cancelled' };
+        if (branchId) orderWhere.branchId = branchId;
+        if (startDate || endDate) {
+            orderWhere.createdAt = {};
+            if (startDate) orderWhere.createdAt[Op.gte] = new Date(startDate);
+            if (endDate) orderWhere.createdAt[Op.lte] = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+        }
+
+        const orders = await Order.findAll({
+            where: orderWhere,
+            attributes: ['items'],
+            raw: true
+        });
+
+        // 3. Aggregate sales data
+        const salesMap = {};
+        orders.forEach(order => {
+            const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+            if (Array.isArray(items)) {
+                items.forEach(item => {
+                    const id = item.id;
+                    if (id) {
+                        if (!salesMap[id]) salesMap[id] = { totalQuantity: 0, totalRevenue: 0 };
+                        salesMap[id].totalQuantity += (item.quantity || 0);
+                        salesMap[id].totalRevenue += (item.quantity || 0) * (item.price || 0);
+                    }
+                });
+            }
+        });
+
+        // 4. Merge sales data into all products
+        const result = allProducts.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            totalQuantity: salesMap[p.id]?.totalQuantity || 0,
+            totalRevenue: salesMap[p.id]?.totalRevenue || 0
+        })).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 router.get('/tenants/me', async (req, res) => {
     try {
         if (!req.user.tenantId) return res.status(404).json({ error: 'Tenant context not found' });

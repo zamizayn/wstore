@@ -15,6 +15,7 @@ export const API_ENDPOINTS = {
     FCM_UNREGISTER: `${BASE_URL}/fcm/unregister`,
     NOTIFICATIONS: `${BASE_URL}/notifications`,
     NOTIFICATIONS_READ: `${BASE_URL}/notifications/read`,
+    PRODUCT_SALES: `${BASE_URL}/product-sales`,
 };
 
 export const getHeaders = () => {
