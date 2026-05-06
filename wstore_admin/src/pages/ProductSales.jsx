@@ -26,7 +26,7 @@ export default function ProductSales() {
         try {
             const res = await fetch(API_ENDPOINTS.TENANTS, { headers: getHeaders() });
             const data = await res.json();
-            setTenants(data);
+            setTenants(Array.isArray(data) ? data : []);
         } catch (e) { console.error(e); }
     };
 
@@ -36,7 +36,7 @@ export default function ProductSales() {
             if (tId) url += `?tenantId=${tId}`;
             const res = await fetch(url, { headers: getHeaders() });
             const data = await res.json();
-            setBranches(data);
+            setBranches(Array.isArray(data) ? data : []);
         } catch (e) { console.error(e); }
     };
 
@@ -53,7 +53,7 @@ export default function ProductSales() {
             if (res.status === 401) return navigate('/login');
             
             const data = await res.json();
-            setSalesData(data);
+            setSalesData(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error('Failed to fetch product sales:', e);
         } finally {
@@ -90,17 +90,17 @@ export default function ProductSales() {
         fetchProductsForFilter();
     }, [startDate, endDate, selectedTenantId, selectedBranchId]);
 
-    const filteredData = salesData.filter(p => 
+    const filteredData = Array.isArray(salesData) ? salesData.filter(p => 
         selectedProductId === 'all' || String(p.id) === String(selectedProductId)
-    );
+    ) : [];
 
     // Pagination Logic
     const totalPages = Math.ceil(filteredData.length / itemsPerPage);
     const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    const topProducts = salesData.slice(0, 10).filter(p => p.totalRevenue > 0);
-    const totalRevenue = salesData.reduce((acc, curr) => acc + curr.totalRevenue, 0);
-    const totalQty = salesData.reduce((acc, curr) => acc + curr.totalQuantity, 0);
+    const topProducts = Array.isArray(salesData) ? salesData.slice(0, 10).filter(p => p.totalRevenue > 0) : [];
+    const totalRevenue = Array.isArray(salesData) ? salesData.reduce((acc, curr) => acc + (curr.totalRevenue || 0), 0) : 0;
+    const totalQty = Array.isArray(salesData) ? salesData.reduce((acc, curr) => acc + (curr.totalQuantity || 0), 0) : 0;
 
     const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 

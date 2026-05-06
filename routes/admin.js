@@ -716,9 +716,8 @@ router.get('/analytics', async (req, res) => {
 
 router.get('/product-sales', async (req, res) => {
     try {
-        const { startDate, endDate, branchId, tenantId } = req.query;
+        const { startDate, endDate, branchId } = req.query;
         const where = await req.getScope();
-        if (req.user.role === 'superadmin' && tenantId) where.tenantId = tenantId;
 
         // 1. Fetch all products in the branch/tenant
         const productWhere = { ...where };
