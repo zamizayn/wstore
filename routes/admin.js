@@ -1,13 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { Product, Category, Order, Customer, Branch, Tenant, CustomerLog } = require('../models');
+const { Product, Category, Order, Customer, Branch, Tenant, CustomerLog, Admin } = require('../models');
 const { sendTextMessage, sendButtonMessage, syncProductToMeta } = require('../services/whatsappService');
 const { Op, fn, col, literal } = require('sequelize');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_wstore';
-const ADMIN_USER = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin';
 
 // Helper to get Tenant config for WhatsApp service
 const getTenantConfig = async (tenantId) => {
@@ -23,14 +21,16 @@ const getTenantConfig = async (tenantId) => {
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
-    // 1. Check Superadmin
-    if (username === ADMIN_USER && password === ADMIN_PASS) {
-        const token = jwt.sign({ username, role: 'superadmin' }, JWT_SECRET, { expiresIn: '24h' });
-        return res.json({ token, role: 'superadmin' });
-    }
-
-    // 2. Check Branch Admin
     try {
+        // 1. Check Superadmin
+        const admin = await Admin.findOne({ where: { username, password } });
+        if (admin) {
+            const token = jwt.sign({ username, role: 'superadmin' }, JWT_SECRET, { expiresIn: '24h' });
+            return res.json({ token, role: 'superadmin' });
+        }
+
+        // 2. Check Branch Admin
+
         const branch = await Branch.findOne({ where: { username, password } });
         if (branch) {
             const token = jwt.sign({
@@ -335,6 +335,9 @@ router.put('/orders/:id/status', async (req, res) => {
         const order = await Order.findByPk(req.params.id);
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
+        if (req.body.status === 'cancelled' && req.body.cancellationReason) {
+            order.cancellationReason = req.body.cancellationReason;
+        }
         order.status = req.body.status;
         await order.save();
 
@@ -343,6 +346,8 @@ router.put('/orders/:id/status', async (req, res) => {
             msg = `🚚 *Update on your Order #${order.id}*\n\nGreat news! Your order has been shipped and is on its way to you!`;
         } else if (order.status === 'delivered') {
             msg = `✅ *Update on your Order #${order.id}*\n\nYour order has been successfully delivered! Thank you for shopping with WStore!`;
+        } else if (order.status === 'cancelled') {
+            msg = `❌ *Update on your Order #${order.id}*\n\nYour order has been cancelled.\n\n*Reason:* ${order.cancellationReason || 'Not specified'}`;
         } else {
             msg = `🔄 *Update on your Order #${order.id}*\n\nYour order status is now: *${order.status.toUpperCase()}*.`;
         }
@@ -351,6 +356,30 @@ router.put('/orders/:id/status', async (req, res) => {
             const config = await getTenantConfig(order.tenantId || (await Branch.findByPk(order.branchId))?.tenantId);
 
             if (order.status === 'delivered') {
+                // Generate and Send PDF Invoice
+                try {
+                    const { generateInvoice } = require('../services/invoiceService');
+                    const { uploadMedia, sendDocumentMessage } = require('../services/whatsappService');
+                    const fs = require('fs');
+
+                    const tenant = await Tenant.findByPk(order.tenantId || (await Branch.findByPk(order.branchId))?.tenantId);
+                    const branch = order.branchId ? await Branch.findByPk(order.branchId) : null;
+
+                    console.log(`[Invoice] Generating PDF for Order #${order.id}`);
+                    const pdfPath = await generateInvoice(order, tenant, branch);
+
+                    console.log(`[Invoice] Uploading to Meta Media API`);
+                    const mediaId = await uploadMedia(pdfPath, 'application/pdf', config);
+
+                    console.log(`[Invoice] Sending document message to ${order.customerPhone}`);
+                    await sendDocumentMessage(order.customerPhone, mediaId, `Invoice_${order.id}.pdf`, config);
+
+                    // Cleanup
+                    fs.unlinkSync(pdfPath);
+                } catch (invError) {
+                    console.error("Invoice Automation Failed:", invError.message);
+                }
+
                 await sendButtonMessage(order.customerPhone, msg, [
                     { id: `rate_${order.id}`, title: 'Rate Order ⭐' },
                     { id: 'menu', title: 'Main Menu' }
@@ -702,9 +731,11 @@ router.get('/branches', async (req, res) => {
         if (!['superadmin', 'tenant', 'branch'].includes(req.user.role)) return res.status(403).json({ error: 'Access denied' });
 
         let where = {};
-        if (req.user.role === 'tenant' || req.user.role === 'branch') {
-            if (!req.user.tenantId) return res.json([]); // Security: if no tenantId, return none
+        if (req.user.role === 'tenant') {
+            if (!req.user.tenantId) return res.json([]);
             where = { tenantId: req.user.tenantId };
+        } else if (req.user.role === 'branch') {
+            where = { id: req.user.branchId };
         }
         const branches = await Branch.findAll({
             where,
@@ -736,7 +767,7 @@ router.delete('/branches/:id', async (req, res) => {
 
 router.put('/branches/:id', async (req, res) => {
     try {
-        if (!['superadmin', 'tenant'].includes(req.user.role)) {
+        if (!['superadmin', 'tenant', 'branch'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Access denied' });
         }
 
@@ -744,6 +775,10 @@ router.put('/branches/:id', async (req, res) => {
         if (!branch) return res.status(404).json({ error: 'Branch not found' });
 
         if (req.user.role === 'tenant' && branch.tenantId !== req.user.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (req.user.role === 'branch' && branch.id !== req.user.branchId) {
             return res.status(403).json({ error: 'Access denied' });
         }
 

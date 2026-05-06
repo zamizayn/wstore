@@ -21,7 +21,9 @@ module.exports = (sequelize, DataTypes) => {
     name: DataTypes.STRING,
     username: DataTypes.STRING,
     password: DataTypes.STRING,
-    tenantId: DataTypes.INTEGER
+    tenantId: DataTypes.INTEGER,
+    openingTime: DataTypes.STRING,
+    closingTime: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Branch',

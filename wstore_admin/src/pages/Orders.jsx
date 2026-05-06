@@ -13,6 +13,9 @@ export default function Orders() {
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState('');
     const [viewingOrder, setViewingOrder] = useState(null);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState('');
+    const [orderToCancel, setOrderToCancel] = useState(null);
     const [products, setProducts] = useState([]);
     const [formData, setFormData] = useState({
         customerPhone: '',
@@ -66,11 +69,32 @@ export default function Orders() {
     };
 
     const updateStatus = async (id, newStatus) => {
+        if (newStatus === 'cancelled') {
+            setOrderToCancel(id);
+            setCancelModalOpen(true);
+            return;
+        }
+
         await fetch(`${API_ENDPOINTS.ORDERS}/${id}/status`, {
             method: 'PUT',
             headers: getHeaders(),
             body: JSON.stringify({ status: newStatus })
         });
+        fetchOrders(pagination.page);
+    };
+
+    const confirmCancellation = async () => {
+        if (!cancellationReason) return alert('Please enter a reason');
+
+        await fetch(`${API_ENDPOINTS.ORDERS}/${orderToCancel}/status`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ status: 'cancelled', cancellationReason })
+        });
+
+        setCancelModalOpen(false);
+        setCancellationReason('');
+        setOrderToCancel(null);
         fetchOrders(pagination.page);
     };
 
@@ -459,6 +483,34 @@ export default function Orders() {
 
                         <div className="modal-actions">
                             <button className="btn-primary w-full" onClick={() => setViewModalOpen(false)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {cancelModalOpen && (
+                <div className="modal-overlay active">
+                    <div className="modal" style={{ maxWidth: '450px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                            <X size={24} style={{ color: '#ef4444' }} />
+                            <h3 style={{ margin: 0 }}>Cancel Order #{orderToCancel}</h3>
+                        </div>
+                        <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                            Please provide a reason for cancelling this order. This will be sent to the customer via WhatsApp.
+                        </p>
+                        <div className="input-group">
+                            <label>Cancellation Reason</label>
+                            <textarea 
+                                rows="3" 
+                                placeholder="e.g. Out of stock, Delivery area not covered..." 
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}
+                                value={cancellationReason}
+                                onChange={e => setCancellationReason(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="modal-actions" style={{ marginTop: '24px' }}>
+                            <button className="btn-outline" onClick={() => { setCancelModalOpen(false); setCancellationReason(''); }}>Back</button>
+                            <button className="btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={confirmCancellation}>Confirm Cancellation</button>
                         </div>
                     </div>
                 </div>

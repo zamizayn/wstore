@@ -18,7 +18,8 @@ const {
     CustomerLog
 } = require('../models');
 
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
+const moment = require('moment-timezone');
 
 // sessions structure: { [phoneNumber]: { state: 'HOME', tenantId: 1, branchId: 1, config: { ... } } }
 const sessions = {};
@@ -38,6 +39,18 @@ const verifyWebhook = (req, res) => {
 // =========================
 // Helper Functions
 // =========================
+
+const isBranchOpen = (branch) => {
+    if (!branch || !branch.openingTime || !branch.closingTime) return true;
+    const now = moment().tz('Asia/Kolkata');
+    const currentTime = now.format('HH:mm');
+    return currentTime >= branch.openingTime && currentTime <= branch.closingTime;
+};
+
+const format12Hour = (timeStr) => {
+    if (!timeStr) return '12:00 AM';
+    return moment(timeStr, 'HH:mm').format('hh:mm A');
+};
 
 const logCustomerActivity = async (phone, tenantId, branchId, actionType, details = {}) => {
     try {
@@ -89,6 +102,8 @@ const extractTextFromMessage = (message) => {
 
 const handleHomeMenu = async (from, session, tenant, customer) => {
     session.state = 'START';
+    session.categoryId = null;
+    session.page = 1;
 
     const welcomeMsg = customer?.name
         ? `Welcome back to *${tenant.name}*, ${customer.name}! 😊 We're so happy to see you again. Explore our latest collection and let us know if you need any help! 🛍️`
@@ -244,13 +259,15 @@ const handleSearching = async (from, text, session) => {
 
     const page = session.page || 1;
     const limit = 10;
+    const safeText = text.replace(/'/g, "''");
+    const searchTerms = safeText.split(' ').map(term => `*${term}*`).join(' ');
+
     const { count, rows: searchResults } = await Product.findAndCountAll({
         where: {
-            [Op.or]: [
-                { name: { [Op.iLike]: `%${text}%` } },
-                { description: { [Op.iLike]: `%${text}%` } }
-            ],
-            branchId: session.branchId || { [Op.not]: null }
+            [Op.and]: [
+                Sequelize.literal(`MATCH(name, description) AGAINST('${searchTerms}' IN BOOLEAN MODE)`),
+                { branchId: session.branchId || { [Op.not]: null } }
+            ]
         },
         order: [['name', 'ASC']],
         limit,
@@ -350,7 +367,19 @@ const handleChangeBranch = async (from, session) => {
     );
 };
 
+const validateShopOpen = async (from, session) => {
+    if (session.branchId) {
+        const branch = await Branch.findByPk(session.branchId);
+        if (branch && !isBranchOpen(branch)) {
+            await sendTextMessage(from, `Hi! 👋 Our shop is currently closed. We are open from *${format12Hour(branch.openingTime)}* to *${format12Hour(branch.closingTime)}*. Please reach out during our working hours. Thank you!`, session.config);
+            return false;
+        }
+    }
+    return true;
+};
+
 const handleShop = async (from, text, session, tenant, customer) => {
+
     if (text === 'shop' || text === 'change_category') {
         session.categoryId = null;
         session.page = 1;
@@ -430,6 +459,8 @@ const handleShop = async (from, text, session, tenant, customer) => {
         session.state = 'SELECTING_CATEGORY';
         session.branchId = branch.id;
 
+        if (!await validateShopOpen(from, session)) return;
+
         const categories = await Category.findAll({
             where: { branchId: branch.id },
             order: [['name', 'ASC']]
@@ -479,6 +510,10 @@ const handleBranchSelection = async (from, text, session) => {
     if (branch) {
         session.state = 'SELECTING_CATEGORY';
         session.branchId = branch.id;
+        session.categoryId = null;
+        session.page = 1;
+
+        if (!await validateShopOpen(from, session)) return;
 
         try {
             await Customer.update({ branchId: branch.id }, { where: { phone: from } });
@@ -523,6 +558,7 @@ const handleBranchSelection = async (from, text, session) => {
 };
 
 const handleCategorySelection = async (from, text, session) => {
+    if (!await validateShopOpen(from, session)) return;
     const categoryId = text.replace('category_', '');
     const category = await Category.findByPk(categoryId);
 

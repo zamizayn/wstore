@@ -253,6 +253,49 @@ const sendCarouselMessage = async (to, bodyText, cards, config = {}) => {
     }
 };
 
+const sendDocumentMessage = async (to, mediaId, filename, config = {}) => {
+    try {
+        await axios.post(getUrl(config), {
+            messaging_product: 'whatsapp',
+            to,
+            type: 'document',
+            document: {
+                id: mediaId,
+                filename
+            }
+        }, { headers: getHeaders(config) });
+    } catch (error) {
+        console.error('WhatsApp Document Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
+const uploadMedia = async (filePath, type, config = {}) => {
+    try {
+        const phoneId = config.phoneNumberId || process.env.PHONE_NUMBER_ID;
+        const token = config.whatsappToken || process.env.WHATSAPP_TOKEN;
+        const version = config.version || process.env.GRAPH_API_VERSION || 'v17.0';
+        
+        const FormData = require('form-data');
+        const fs = require('fs');
+        const form = new FormData();
+        form.append('file', fs.createReadStream(filePath));
+        form.append('type', type);
+        form.append('messaging_product', 'whatsapp');
+
+        const res = await axios.post(`https://graph.facebook.com/${version}/${phoneId}/media`, form, {
+            headers: {
+                ...form.getHeaders(),
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        return res.data.id;
+    } catch (error) {
+        console.error('WhatsApp Media Upload Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
 /**
  * Syncs a product to the Meta Catalog via the Batch API
  */
@@ -313,5 +356,7 @@ module.exports = {
     sendSingleProductMessage,
     sendMultiProductMessage,
     sendCarouselMessage,
+    sendDocumentMessage,
+    uploadMedia,
     syncProductToMeta
 };

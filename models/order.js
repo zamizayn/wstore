@@ -22,7 +22,8 @@ module.exports = (sequelize, DataTypes) => {
     items: DataTypes.JSONB,
     total: DataTypes.FLOAT,
     status: DataTypes.STRING,
-    branchId: DataTypes.INTEGER
+    branchId: DataTypes.INTEGER,
+    cancellationReason: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Order',
