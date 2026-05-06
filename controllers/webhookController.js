@@ -20,6 +20,7 @@ const {
 
 const { Op, Sequelize } = require('sequelize');
 const moment = require('moment-timezone');
+const notificationService = require('../services/notificationService');
 
 // sessions structure: { [phoneNumber]: { state: 'HOME', tenantId: 1, branchId: 1, config: { ... } } }
 const sessions = {};
@@ -123,8 +124,53 @@ const handleHomeMenu = async (from, session, tenant, customer) => {
                 { id: 'cart', title: 'View Cart', description: 'Check your items 🛒' },
                 { id: 'track', title: 'Track Order', description: 'Check status 🚚' }
             ]
+        },
+        {
+            title: "🆘 Help & Support",
+            rows: [
+                { id: 'support', title: 'Get Help', description: 'Chat with our support team' }
+            ]
         }
     ], session.config);
+};
+
+const handleSupport = async (from, session) => {
+    await sendButtonMessage(from, "🆘 *Help & Support*\n\nIs your issue related to a specific order?", [
+        { id: 'support_order_yes', title: 'Yes, Select Order' },
+        { id: 'support_order_no', title: 'No, Other Issue' }
+    ], session.config);
+};
+
+const handleSupportOrderList = async (from, session) => {
+    const recentOrders = await Order.findAll({
+        where: { customerPhone: from },
+        order: [['createdAt', 'DESC']],
+        limit: 5
+    });
+
+    if (recentOrders.length === 0) {
+        await sendTextMessage(from, "No recent orders found. Please describe your issue below:", session.config);
+        session.state = 'SUPPORT';
+        session.supportOrderId = null;
+        return;
+    }
+
+    const rows = recentOrders.map(order => {
+        const statusEmoji = { 'pending': '⏳', 'shipped': '🚚', 'delivered': '✅', 'cancelled': '❌' }[order.status] || '📦';
+        return {
+            id: `support_order_${order.id}`,
+            title: `Order #${order.id} ${statusEmoji}`,
+            description: `₹${order.total} • ${new Date(order.createdAt).toLocaleDateString()}`
+        };
+    });
+
+    await sendListMessage(
+        from,
+        "Please select the order you need help with:",
+        "Select Order",
+        [{ title: "Recent Orders", rows }],
+        session.config
+    );
 };
 
 const handleTrackOrder = async (from, session) => {
@@ -824,7 +870,9 @@ const handlePaymentSelection = async (from, text, session) => {
             items: userCart,
             total,
             status: 'pending',
-            branchId: session.branchId
+            branchId: session.branchId,
+            paymentMethod,
+            paymentStatus: 'pending'
         });
     } catch (e) {
         console.error('Order save error:', e);
@@ -843,6 +891,17 @@ const handlePaymentSelection = async (from, text, session) => {
     carts[from] = [];
     session.state = 'ORDER_CONFIRMED';
     delete session.address; // Clean up session
+
+    // Send push notification to tenant admins
+    if (savedOrder && session.tenantId) {
+        notificationService.sendToTenant(
+            session.tenantId,
+            `🛒 New Order #${savedOrder.id}`,
+            `₹${total} from +${from} (${paymentMethod})`,
+            'new_order',
+            { orderId: savedOrder.id, total, customerPhone: from, branchId: session.branchId }
+        ).catch(err => console.error('[FCM trigger error]', err.message));
+    }
 
     await sendButtonMessage(
         from,
@@ -998,6 +1057,47 @@ const receiveWebhook = async (req, res) => {
             await handleViewOrder(from, text, session);
         } else if (text === 'search_mode') {
             await handleSearchMode(from, session);
+        } else if (text === 'support') {
+            await handleSupport(from, session);
+        } else if (text === 'support_order_yes') {
+            await handleSupportOrderList(from, session);
+        } else if (text === 'support_order_no') {
+            session.state = 'SUPPORT';
+            session.supportOrderId = null;
+            await sendTextMessage(from, "Please describe your issue below:", session.config);
+        } else if (text.startsWith('support_order_')) {
+            const orderId = text.replace('support_order_', '');
+            session.supportOrderId = orderId;
+            session.state = 'SUPPORT';
+            await sendTextMessage(from, `Issue related to *Order #${orderId}*.\n\nPlease describe the problem:`, session.config);
+        } else if (session.state === 'SUPPORT') {
+            let logBranchId = session.branchId;
+            
+            // If linked to an order, try to get that order's branchId
+            if (session.supportOrderId) {
+                const order = await Order.findByPk(session.supportOrderId);
+                if (order) logBranchId = order.branchId;
+            }
+
+            await logCustomerActivity(from, tenant.id, logBranchId, 'SUPPORT_REQUEST', { 
+                message: text,
+                orderId: session.supportOrderId || null
+            });
+            session.state = 'START';
+            session.supportOrderId = null;
+
+            // Send push notification for support request
+            if (tenant?.id) {
+                notificationService.sendToTenant(
+                    tenant.id,
+                    '🆘 New Support Request',
+                    `From +${from}: ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`,
+                    'support_request',
+                    { customerPhone: from, message: text, orderId: session.supportOrderId || null, branchId: logBranchId }
+                ).catch(err => console.error('[FCM trigger error]', err.message));
+            }
+
+            await sendButtonMessage(from, "✅ *Message Received!*\n\nThank you for reaching out. Our support team has been notified and will contact you shortly.", [{ id: 'menu', title: 'Back to Menu' }], session.config);
         } else if (text === 'shop' || text === 'change_category') {
             await logCustomerActivity(from, tenant.id, session.branchId, 'SHOP_VIEWED');
             await handleShop(from, text, session, tenant, customer);

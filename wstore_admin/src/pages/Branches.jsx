@@ -58,11 +58,10 @@ export default function Branches() {
 
     const openModal = (branch = null) => {
         if (branch) {
-            // Password won't be prefilled for security, unless your API sends it back. Usually it's blank on edit.
-            setFormData({ 
-                id: branch.id, 
-                name: branch.name, 
-                username: branch.username, 
+            setFormData({
+                id: branch.id,
+                name: branch.name,
+                username: branch.username,
                 password: '',
                 openingTime: branch.openingTime || '00:00',
                 closingTime: branch.closingTime || '23:59'
@@ -83,101 +82,104 @@ export default function Branches() {
     };
 
     return (
-        <>
+        <div className="dashboard-content">
             <header className="top-header">
-                <h1>{role === 'branch' ? 'Hub Settings' : 'Branch Management'}</h1>
+                <div>
+                    <h1>{role === 'branch' ? 'Hub Settings' : 'Branch Management'}</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Manage physical locations and operational hours</p>
+                </div>
+                {role !== 'branch' && (
+                    <button className="btn-primary" onClick={() => openModal()}>
+                        <Plus size={18} /> Add Branch
+                    </button>
+                )}
             </header>
 
-            <div className="content-view active">
-                {role !== 'branch' && (
-                    <div className="action-bar">
-                        <button className="btn-primary" onClick={() => openModal()}>
-                            <Plus size={18} /> Add New Branch
-                        </button>
-                    </div>
-                )}
-                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-                    {branches.map(branch => (
-                        <div key={branch.id} className="stat-card" style={{ padding: '20px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div className="icon-wrapper" style={{ position: 'static', color: 'var(--accent)', background: 'rgba(99,102,241,0.1)', padding: '10px', borderRadius: '10px' }}>
-                                        <Store size={20} />
-                                    </div>
-                                    <div>
-                                        <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-main)' }}>{branch.name}</h3>
-                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: #{branch.id}</span>
-                                    </div>
+            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                {branches.map(branch => (
+                    <div key={branch.id} className="white-card" style={{ padding: '24px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ width: '48px', height: '48px', background: 'var(--accent-light)', color: 'var(--accent)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Store size={24} />
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button className="action-btn edit" onClick={() => openModal(branch)}><Edit2 size={16} /></button>
-                                    {role !== 'branch' && (
-                                        <button className="action-btn delete" onClick={() => handleDelete(branch.id)}><Trash2 size={16} /></button>
-                                    )}
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '18px' }}>{branch.name}</h3>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>#{branch.id}</span>
                                 </div>
                             </div>
-
-                            <div style={{ background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                    <User size={14} className="text-muted" /> <strong>User:</strong> {branch.username}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Lock size={14} className="text-muted" /> <strong>Pass:</strong> ••••••••
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', color: 'var(--accent)', fontWeight: '500' }}>
-                                    <Clock size={14} /> {format12Hour(branch.openingTime)} - {format12Hour(branch.closingTime)}
-                                </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn-outline" style={{ padding: '8px' }} onClick={() => openModal(branch)}><Edit2 size={16} /></button>
+                                {role !== 'branch' && (
+                                    <button className="btn-outline" style={{ padding: '8px', color: 'var(--danger)' }} onClick={() => handleDelete(branch.id)}><Trash2 size={16} /></button>
+                                )}
                             </div>
                         </div>
-                    ))}
-                </div>
 
-                {branches.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-muted)' }}>
-                        <MapPin size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
-                        <p>No branches configured yet.</p>
+                        <div style={{ background: 'var(--bg-app)', padding: '16px', borderRadius: '16px', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Username</span>
+                                <span style={{ fontWeight: 700 }}>{branch.username}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Security Key</span>
+                                <span style={{ fontWeight: 700 }}>••••••••</span>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)', fontWeight: 700, fontSize: '14px' }}>
+                            <Clock size={16} />
+                            {format12Hour(branch.openingTime)} — {format12Hour(branch.closingTime)}
+                        </div>
                     </div>
-                )}
+                ))}
             </div>
+
+            {branches.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-muted)' }}>
+                    <MapPin size={64} style={{ opacity: 0.1, marginBottom: '24px' }} />
+                    <p>No branches have been created yet.</p>
+                </div>
+            )}
 
             {modalOpen && (
                 <div className="modal-overlay active">
-                    <div className="modal">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                            <Shield size={24} className="text-accent" />
-                            <h3 style={{ margin: 0 }}>{formData.id ? 'Edit Branch' : 'Create New Branch'}</h3>
+                    <div className="modal" style={{ maxWidth: '500px', padding: '32px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                            <h3>{formData.id ? 'Edit Branch' : 'New Branch'}</h3>
+                            <button className="btn-outline" style={{ border: 'none', padding: '4px' }} onClick={() => setModalOpen(false)}>✕</button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="input-group">
                                 <label>Branch Name</label>
-                                <input type="text" placeholder="e.g. Downtown Outlet" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                                <input type="text" placeholder="e.g. Main Street Outlet" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
                             </div>
                             <div className="input-group">
-                                <label>Username</label>
-                                <input type="text" placeholder="Branch login ID" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} required />
+                                <label>Login Username</label>
+                                <input type="text" placeholder="branch_admin" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} required />
                             </div>
                             <div className="input-group">
-                                <label>Password {formData.id && <span style={{ fontSize: '12px', color: '#9ca3af' }}>(Leave blank to keep current)</span>}</label>
-                                <input type="password" placeholder={formData.id ? "Enter new password" : "Branch access key"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!formData.id} />
+                                <label>Password {formData.id && <span style={{ fontSize: '12px', opacity: 0.6 }}>(Leave blank to keep current)</span>}</label>
+                                <input type="password" placeholder={formData.id ? "New password" : "Access password"} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!formData.id} />
                             </div>
-                            <div style={{ display: 'flex', gap: '15px' }}>
-                                <div className="input-group" style={{ flex: 1 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div className="input-group">
                                     <label>Opening Time</label>
                                     <input type="time" value={formData.openingTime} onChange={e => setFormData({ ...formData, openingTime: e.target.value })} required />
                                 </div>
-                                <div className="input-group" style={{ flex: 1 }}>
+                                <div className="input-group">
                                     <label>Closing Time</label>
                                     <input type="time" value={formData.closingTime} onChange={e => setFormData({ ...formData, closingTime: e.target.value })} required />
                                 </div>
                             </div>
-                            <div className="modal-actions">
-                                <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary">{formData.id ? 'Save Changes' : 'Provision Branch'}</button>
+                            <div className="modal-actions" style={{ gap: '12px' }}>
+                                <button type="button" className="btn-outline" style={{ flex: 1 }} onClick={() => setModalOpen(false)}>Cancel</button>
+                                <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{formData.id ? 'Save Changes' : 'Create Branch'}</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

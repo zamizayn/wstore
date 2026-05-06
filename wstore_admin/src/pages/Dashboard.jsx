@@ -13,10 +13,12 @@ export default function Dashboard() {
     const navigate = useNavigate();
 
     const fetchDashboardData = async () => {
+        const branchId = localStorage.getItem('selectedBranchId') || '';
+        const branchParam = branchId ? `&branchId=${branchId}` : '';
         try {
             const [counts, anaRes] = await Promise.all([
-                fetch(API_ENDPOINTS.ANALYTICS, { headers: getHeaders() }),
-                fetch(API_ENDPOINTS.CATEGORIES, { headers: getHeaders() })
+                fetch(`${API_ENDPOINTS.ANALYTICS}?${branchParam.replace('&', '')}`, { headers: getHeaders() }),
+                fetch(`${API_ENDPOINTS.CATEGORIES}?${branchParam.replace('&', '')}`, { headers: getHeaders() })
             ]);
 
             if (counts.status === 401) return navigate('/login');
@@ -31,7 +33,7 @@ export default function Dashboard() {
             });
 
             // Simple fetch for product count if needed, or just use analytics
-            const prodRes = await fetch(`${API_ENDPOINTS.PRODUCTS}?limit=1`, { headers: getHeaders() });
+            const prodRes = await fetch(`${API_ENDPOINTS.PRODUCTS}?limit=1${branchParam}`, { headers: getHeaders() });
             const prodData = await prodRes.json();
             setStats(prev => ({ ...prev, products: prodData.total }));
 
@@ -41,9 +43,9 @@ export default function Dashboard() {
                 if (tRes.ok) {
                     const tData = await tRes.json();
                     setTenant(tData);
-                    setConfigForm({ 
-                        wabaId: tData.wabaId || '', 
-                        phoneNumberId: tData.phoneNumberId || '', 
+                    setConfigForm({
+                        wabaId: tData.wabaId || '',
+                        phoneNumberId: tData.phoneNumberId || '',
                         whatsappToken: tData.whatsappToken || '',
                         displayMode: tData.displayMode || 'catalog'
                     });
@@ -84,277 +86,288 @@ export default function Dashboard() {
 
     if (!analytics) return <div className="loading-content">Loading Intelligence...</div>;
 
-    const branchName = localStorage.getItem('branchName');
+    const branchId = localStorage.getItem('selectedBranchId');
+    const branchName = localStorage.getItem('branchName') || 'All Branches';
+    const displayBranchName = branchId ? branchName : 'All Branches';
 
     return (
-        <>
-            <header className="top-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <h1>Business Overview</h1>
-                    <span className="badge" style={{ background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 'bold' }}>{branchName}</span>
+        <div className="dashboard-content">
+            <section className="hero-banner">
+                <div style={{ position: 'relative', zIndex: 10 }}>
+                    <p style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                    <h1>Good morning, {localStorage.getItem('adminName')?.split(' ')[0] || 'Admin'}</h1>
+                    <p>Here's what's happening with your store today.</p>
                 </div>
-            </header>
 
-            <div className="content-view active">
-                {/* Webhook Status Alert for Tenants */}
-                {localStorage.getItem('adminRole') === 'tenant' && tenant && !tenant.webhooksEnabled && (
-                    <div className="alert-banner" style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid #F59E0B', padding: '20px', borderRadius: '16px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                            <div style={{ background: '#F59E0B', color: '#fff', padding: '12px', borderRadius: '12px' }}>
-                                <AlertCircle size={24} />
-                            </div>
+                <div className="hero-stats-grid">
+                    <div className="glass-stat-card">
+                        <label><IndianRupee size={14} /> REVENUE</label>
+                        <div className="value">₹{analytics.revenue.toLocaleString()}</div>
+                        <div className="trend" style={{ color: '#4ade80' }}><TrendingUp size={12} /> +12.4% vs last month</div>
+                    </div>
+                    <div className="glass-stat-card">
+                        <label><ShoppingCart size={14} /> TOTAL ORDERS</label>
+                        <div className="value">{analytics.totalOrders}</div>
+                        <div className="trend" style={{ color: '#4ade80' }}><TrendingUp size={12} /> +8.2% vs last month</div>
+                    </div>
+                    <div className="glass-stat-card">
+                        <label><Users size={14} /> ACTIVE CUSTOMERS</label>
+                        <div className="value">{analytics.totalCustomers}</div>
+                        <div className="trend" style={{ color: '#fbbf24' }}><TrendingUp size={12} /> +5.1% vs last month</div>
+                    </div>
+                    <div className="glass-stat-card">
+                        <label><Star size={14} /> AVG. ORDER VALUE</label>
+                        <div className="value">₹{Math.round(analytics.aov)}</div>
+                        <div className="trend" style={{ color: '#4ade80' }}><TrendingUp size={12} /> +2.4% vs last month</div>
+                    </div>
+                </div>
+            </section>
+
+            <div className="dashboard-grid">
+                <div className="main-stats">
+                    <div className="white-card">
+                        <div className="card-header">
                             <div>
-                                <h3 style={{ margin: 0, color: '#92400E' }}>WhatsApp Webhooks Disabled</h3>
-                                <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#B45309' }}>You won't receive real-time order notifications until webhooks are enabled on Meta.</p>
+                                <h3>Revenue Growth</h3>
+                                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>Monthly recurring revenue trend</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn-outline" style={{ padding: '6px 12px', fontSize: '12px' }}>Weekly</button>
+                                <button className="btn-outline" style={{ padding: '6px 12px', fontSize: '12px', background: '#f1f5f9' }}>Monthly</button>
                             </div>
                         </div>
-                        <button
-                            className="btn-primary"
-                            style={{ background: '#F59E0B', boxShadow: 'none', width: 'auto' }}
-                            onClick={async () => {
-                                if (!confirm('Enable Meta Webhooks now? This will connect your messaging service.')) return;
-                                const tId = localStorage.getItem('tenantId') || 'me';
-                                const res = await fetch(`${API_ENDPOINTS.TENANTS}/${tId}/enable-webhooks`, {
-                                    method: 'POST',
-                                    headers: getHeaders(),
-                                    body: JSON.stringify({
-                                        wabaId: tenant.wabaId,
-                                        whatsappToken: tenant.whatsappToken
-                                    })
-                                });
-                                if (res.ok) {
-                                    alert('Webhooks Active!');
-                                    window.location.reload();
-                                } else {
-                                    const err = await res.json();
-                                    alert('Error: ' + (err.error || 'Failed to enable'));
-                                }
-                            }}
-                        >
-                            Enable Now
-                        </button>
-                    </div>
-                )}
-
-                {localStorage.getItem('adminRole') === 'tenant' && tenant && (
-                    <div className="whatsapp-config-panel" style={{ background: '#fff', padding: '24px', borderRadius: '16px', marginBottom: '32px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px' }}>
-                                <div style={{ background: 'var(--accent-light)', padding: '8px', borderRadius: '8px', display: 'flex' }}>
-                                    <Settings2 size={18} className="text-accent" />
-                                </div>
-                                WhatsApp Integration Settings
-                            </h3>
-                        </div>
-                        <form onSubmit={handleUpdateConfig} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', alignItems: 'end' }}>
-                            <div className="input-group" style={{ marginBottom: 0 }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Settings2 size={14}/> WABA ID</label>
-                                <input type="text" placeholder="109283..." value={configForm.wabaId} onChange={e => setConfigForm({...configForm, wabaId: e.target.value})} style={{ padding: '10px 14px' }} />
-                            </div>
-                            <div className="input-group" style={{ marginBottom: 0 }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Phone size={14}/> Phone Number ID</label>
-                                <input type="text" placeholder="Phone ID..." value={configForm.phoneNumberId} onChange={e => setConfigForm({...configForm, phoneNumberId: e.target.value})} style={{ padding: '10px 14px' }} />
-                            </div>
-                            <div className="input-group" style={{ marginBottom: 0 }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><Key size={14}/> Access Token</label>
-                                <input type="password" placeholder="System User Token..." value={configForm.whatsappToken} onChange={e => setConfigForm({...configForm, whatsappToken: e.target.value})} style={{ padding: '10px 14px' }} />
-                            </div>
-                            <div className="input-group" style={{ marginBottom: 0 }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}><ShoppingCart size={14}/> Display Mode</label>
-                                <select value={configForm.displayMode} onChange={e => setConfigForm({...configForm, displayMode: e.target.value})} style={{ padding: '10px 14px' }}>
-                                    <option value="catalog">Meta Catalog (Native)</option>
-                                    <option value="carousel">Carousel (Custom)</option>
-                                </select>
-                            </div>
-                            <div style={{ gridColumn: 'span 1' }}>
-                                <button type="submit" className="btn-primary" disabled={isUpdatingConfig} style={{ height: '42px', padding: '0 24px', whiteSpace: 'nowrap', width: '100%' }}>
-                                    {isUpdatingConfig ? 'Saving...' : <><Save size={16}/> Save Updates</>}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                <div className="stats-grid">
-                    <div className="stat-card premium">
-                        <div className="icon-wrapper"><IndianRupee size={80} /></div>
-                        <h3>Total Revenue</h3>
-                        <p>₹{analytics.revenue.toLocaleString()}</p>
-                        <div className="stat-label">Lifetime Earnings</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="icon-wrapper"><TrendingUp size={80} /></div>
-                        <h3>Avg. Order Value</h3>
-                        <p>₹{Math.round(analytics.aov)}</p>
-                        <div className="stat-label">Value per Basket</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="icon-wrapper"><ShoppingCart size={80} /></div>
-                        <h3>Total Orders</h3>
-                        <p>{analytics.totalOrders}</p>
-                        <div className="stat-label">Transactions logged</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="icon-wrapper"><Users size={80} /></div>
-                        <h3>Total Customers</h3>
-                        <p>{analytics.totalCustomers}</p>
-                        <div className="stat-label">Unique Interactions</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="icon-wrapper"><Star size={80} /></div>
-                        <h3>Retention Rate</h3>
-                        <p>{analytics.retentionRate}%</p>
-                        <div className="stat-label">Repeat Customers</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="icon-wrapper"><PieIcon size={80} /></div>
-                        <h3>Customer LTV</h3>
-                        <p>₹{Math.round(analytics.clv)}</p>
-                        <div className="stat-label">Avg. Lifetime Spend</div>
-                    </div>
-                </div>
-
-                <div className="analytics-section">
-                    <div className="chart-container">
-                        <h3>Sales performance (Last 7 Days)</h3>
-                        <div style={{ width: '100%', height: 300 }}>
+                        <div style={{ width: '100%', height: 320 }}>
                             <ResponsiveContainer>
                                 <AreaChart data={analytics.trend}>
                                     <defs>
-                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#6366F1" stopOpacity={0.1} />
-                                            <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                                        <linearGradient id="colorRevFlux" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
-                                    <YAxis hide />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
                                     <Tooltip
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                                        contentStyle={{ background: 'white', borderRadius: '12px', border: 'none', boxShadow: 'var(--shadow-lg)' }}
                                         formatter={(val) => [`₹${val}`, 'Revenue']}
                                     />
-                                    <Area type="monotone" dataKey="revenue" stroke="#6366F1" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                                    <Area type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorRevFlux)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
+                    </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '32px' }}>
-                            <div className="sub-chart">
-                                <h3><PieIcon size={16} /> Revenue by Category</h3>
-                                <div style={{ height: 200 }}>
-                                    <ResponsiveContainer>
-                                        <PieChart>
-                                            <Pie
-                                                data={analytics.categoryRevenue}
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                            >
-                                                {analytics.categoryRevenue.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={['#6366F1', '#10B981', '#F59E0B', '#EF4444'][index % 4]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
+                    <div className="white-card" style={{ marginTop: '32px' }}>
+                        <div className="card-header">
+                            <h3>Recent Orders</h3>
+                            <button className="btn-outline" style={{ fontSize: '12px' }} onClick={() => navigate('/admin/orders')}>View All</button>
+                        </div>
+                        <table className="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>Order</th>
+                                    <th>Customer</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {analytics.recentOrders.map(order => (
+                                    <tr key={order.id}>
+                                        <td style={{ fontWeight: 700 }}>#{order.id}</td>
+                                        <td>{order.customerPhone}</td>
+                                        <td style={{ fontWeight: 600 }}>₹{order.total}</td>
+                                        <td>
+                                            <span className={`status-pill ${order.status === 'delivered' ? 'success' : order.status === 'pending' ? 'warning' : 'info'}`}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="side-panels">
+                    <div className="white-card sprint-card">
+                        <div className="card-header">
+                            <div>
+                                <h3 style={{ fontSize: '16px' }}>Order Fulfillment</h3>
+                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Active queue processing</p>
                             </div>
-                            <div className="sub-chart">
-                                <h3><BarIcon size={16} /> Orders by Hour</h3>
-                                <div style={{ height: 200 }}>
-                                    <ResponsiveContainer>
-                                        <BarChart data={analytics.hourlyStats}>
-                                            <XAxis dataKey="hour" hide />
-                                            <Tooltip />
-                                            <Bar dataKey="count" fill="#6366F1" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
+                        </div>
+                        <div className="progress-stack">
+                            <div className="progress-segment" style={{ width: '65%', background: 'var(--accent)' }}></div>
+                            <div className="progress-segment" style={{ width: '20%', background: '#38bdf8' }}></div>
+                            <div className="progress-segment" style={{ width: '15%', background: '#fbbf24' }}></div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '15px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }}></div> Shipped</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }}></div> Pending</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#fbbf24' }}></div> Alert</div>
                         </div>
                     </div>
 
-                    <div className="top-products-list">
-                        <h3><Star size={18} /> Top Selling Products</h3>
-                        <div className="product-ranking">
-                            {analytics.topProducts.map((p, i) => (
-                                <div key={i} className="rank-item">
-                                    <div className="rank-num">{i + 1}</div>
-                                    <div className="rank-info">
-                                        <strong>{p.name}</strong>
-                                        <span>{p.count} units sold</span>
+                    <div className="white-card">
+                        <div className="card-header">
+                            <h3 style={{ fontSize: '16px' }}>Order Breakdown</h3>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {[
+                                { label: 'Delivered', count: analytics.statusCounts?.delivered || 0, color: '#10b981', bg: '#dcfce7' },
+                                { label: 'Shipped', count: analytics.statusCounts?.shipped || 0, color: '#6366f1', bg: '#e0e7ff' },
+                                { label: 'Pending', count: analytics.statusCounts?.pending || 0, color: '#f59e0b', bg: '#fef9c3' },
+                                { label: 'Cancelled', count: analytics.statusCounts?.cancelled || 0, color: '#ef4444', bg: '#fee2e2' },
+                            ].map(item => (
+                                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                    <div style={{ width: '40px', height: '40px', background: item.bg, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '14px', color: item.color }}>{item.count}</div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.label}</div>
+                                        <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', background: item.color, borderRadius: '3px', width: `${analytics.totalOrders > 0 ? Math.round((item.count / analytics.totalOrders) * 100) : 0}%`, transition: 'width 0.5s ease' }}></div>
+                                        </div>
                                     </div>
-                                    <div className="rank-bar-bg">
-                                        <div className="rank-bar-fill" style={{ width: `${(p.count / (analytics.topProducts[0]?.count || 1)) * 100}%` }}></div>
-                                    </div>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, minWidth: '36px', textAlign: 'right' }}>{analytics.totalOrders > 0 ? Math.round((item.count / analytics.totalOrders) * 100) : 0}%</span>
                                 </div>
                             ))}
                         </div>
+                    </div>
 
-                        <h3 style={{ marginTop: '40px' }}><TrendingUp size={18} /> Order Status</h3>
-                        <div className="status-summary">
-                            <div className="status-item pending">
-                                <AlertCircle size={16} /> <span>Pending: {analytics.statusCounts.pending}</span>
-                            </div>
-                            <div className="status-item shipped">
-                                <Truck size={16} /> <span>Shipped: {analytics.statusCounts.shipped}</span>
-                            </div>
-                            <div className="status-item delivered">
-                                <CheckCircle size={16} /> <span>Delivered: {analytics.statusCounts.delivered}</span>
-                            </div>
-                        </div>
-
-                        {analytics.lowStock?.length > 0 && (
-                            <div className="low-stock-alert-panel" style={{ marginTop: '40px' }}>
-                                <h3 style={{ color: 'var(--danger)' }}><AlertCircle size={18} /> Low Stock Alerts</h3>
-                                <div className="product-ranking">
-                                    {analytics.lowStock.map((p, i) => (
-                                        <div key={i} className="rank-item">
-                                            <div className="rank-num" style={{ color: 'var(--danger)' }}>{p.stock}</div>
-                                            <div className="rank-info">
-                                                <strong>{p.name}</strong>
-                                                <span style={{ color: 'var(--danger)' }}>Action required</span>
-                                            </div>
-                                            <div className="rank-bar-bg">
-                                                <div className="rank-bar-fill" style={{ width: `${(p.stock / 10) * 100}%`, background: 'var(--danger)' }}></div>
-                                            </div>
+                    <div className="white-card" style={{ marginTop: '32px' }}>
+                        <h3 style={{ fontSize: '16px', marginBottom: '20px' }}>Quick Actions</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {[
+                                { label: 'Create Order', icon: ShoppingCart, path: '/admin/orders', color: '#6366f1' },
+                                { label: 'Add Product', icon: ShoppingBag, path: '/admin/products', color: '#10b981' },
+                                { label: 'View Customers', icon: Users, path: '/admin/customers', color: '#f59e0b' },
+                                { label: 'Check Inventory', icon: AlertCircle, path: '/admin/inventory', color: '#ef4444' },
+                            ].map(action => {
+                                const Icon = action.icon;
+                                return (
+                                    <button
+                                        key={action.label}
+                                        onClick={() => navigate(action.path)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '14px',
+                                            padding: '14px 16px', borderRadius: '14px',
+                                            background: 'var(--bg-app)', border: '1px solid var(--border-color)',
+                                            cursor: 'pointer', transition: 'all 0.2s',
+                                            fontWeight: 600, fontSize: '14px', color: 'var(--text-main)', width: '100%', textAlign: 'left'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.borderColor = action.color; e.currentTarget.style.background = 'white'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-app)'; }}
+                                    >
+                                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: `${action.color}15`, color: action.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Icon size={18} />
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                                        {action.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="recent-activity-section">
-                    <h3><Clock size={18} /> Recent Orders</h3>
-                    <div className="activity-list">
-                        {analytics.recentOrders.length === 0 ? (
-                            <p className="empty-msg">No recent activity found.</p>
-                        ) : analytics.recentOrders.map(order => (
-                            <div key={order.id} className="activity-item">
-                                <div className={`activity-icon-bg ${order.status}`}>
-                                    {order.status === 'delivered' ? <CheckCircle size={16} /> : order.status === 'shipped' ? <Truck size={16} /> : <ShoppingCart size={16} />}
-                                </div>
-                                <div className="activity-content">
-                                    <div className="activity-main">
-                                        <strong>Order #{order.id}</strong>
-                                        <span>{order.customerPhone}</span>
-                                    </div>
-                                    <div className="activity-meta">
-                                        <span>₹{order.total}</span>
-                                        <span className="dot"></span>
-                                        <span>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                    </div>
-                                </div>
-                                <div className={`activity-status ${order.status}`}>{order.status}</div>
+            {/* Low Stock Alerts */}
+            {analytics.lowStock && analytics.lowStock.length > 0 && (
+                <div className="white-card" style={{ marginTop: '32px' }}>
+                    <div className="card-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '40px', height: '40px', background: '#fef2f2', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
+                                <AlertCircle size={20} />
+                            </div>
+                            <div>
+                                <h3>Low Stock Alerts</h3>
+                                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>{analytics.lowStock.length} products need attention</p>
+                            </div>
+                        </div>
+                        <button className="btn-outline" style={{ fontSize: '12px' }} onClick={() => navigate('/admin/inventory')}>Manage Inventory</button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+                        {analytics.lowStock.slice(0, 8).map(item => (
+                            <div key={item.id} style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '14px 16px', background: 'var(--bg-app)', borderRadius: '12px',
+                                border: `1px solid ${item.stock === 0 ? '#fee2e2' : 'var(--border-color)'}`
+                            }}>
+                                <span style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{item.name}</span>
+                                <span style={{
+                                    fontWeight: 800, fontSize: '13px',
+                                    color: item.stock === 0 ? '#ef4444' : '#f59e0b',
+                                    background: item.stock === 0 ? '#fef2f2' : '#fefce8',
+                                    padding: '4px 10px', borderRadius: '8px'
+                                }}>{item.stock === 0 ? 'OUT' : item.stock}</span>
                             </div>
                         ))}
                     </div>
-                    <button className="btn-outline w-full" onClick={() => navigate('/orders')}>View All Orders</button>
                 </div>
-            </div>
-        </>
+            )}
+
+            {/* WhatsApp Configuration - Tenant/Branch only */}
+            {tenant && localStorage.getItem('adminRole') !== 'superadmin' && (
+                <div className="white-card" style={{ marginTop: '32px' }}>
+                    <div className="card-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '40px', height: '40px', background: '#dcfce7', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                <Phone size={20} />
+                            </div>
+                            <div>
+                                <h3>WhatsApp Configuration</h3>
+                                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>Manage your Meta Business API credentials</p>
+                            </div>
+                        </div>
+                    </div>
+                    <form onSubmit={handleUpdateConfig}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            <div className="input-group">
+                                <label>WABA ID</label>
+                                <input
+                                    type="text"
+                                    placeholder="WhatsApp Business Account ID"
+                                    value={configForm.wabaId}
+                                    onChange={e => setConfigForm({ ...configForm, wabaId: e.target.value })}
+                                />
+                            </div>
+                            <div className="input-group">
+                                <label>Phone Number ID</label>
+                                <input
+                                    type="text"
+                                    placeholder="Meta Phone Number ID"
+                                    value={configForm.phoneNumberId}
+                                    onChange={e => setConfigForm({ ...configForm, phoneNumberId: e.target.value })}
+                                />
+                            </div>
+                            <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                                <label>Access Token</label>
+                                <input
+                                    type="password"
+                                    placeholder="Meta permanent access token"
+                                    value={configForm.whatsappToken}
+                                    onChange={e => setConfigForm({ ...configForm, whatsappToken: e.target.value })}
+                                />
+                            </div>
+                            <div className="input-group">
+                                <label>Display Mode</label>
+                                <select
+                                    value={configForm.displayMode}
+                                    onChange={e => setConfigForm({ ...configForm, displayMode: e.target.value })}
+                                >
+                                    <option value="catalog">Catalog (Native WhatsApp)</option>
+                                    <option value="list">List (Interactive Messages)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button type="submit" className="btn-primary" disabled={isUpdatingConfig}>
+                                <Save size={16} /> {isUpdatingConfig ? 'Saving...' : 'Save Configuration'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+        </div>
     );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Boxes, AlertTriangle, Plus, Minus, ArrowRightLeft } from 'lucide-react';
+import { Boxes, AlertTriangle, Plus, Minus, ArrowRightLeft, Search } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
@@ -76,195 +76,202 @@ export default function Inventory() {
         : products;
 
     return (
-        <>
-            <header className="top-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1>Inventory Management</h1>
-
-                <div className="filter-controls" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-main)', fontSize: '14px' }}>
+        <div className="dashboard-content">
+            <header className="top-header">
+                <div>
+                    <h1>Inventory Management</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Monitor stock levels and perform quick adjustments</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', background: 'white', padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '14px', fontWeight: 500 }}>
                         <input
                             type="checkbox"
                             checked={lowStockOnly}
                             onChange={(e) => setLowStockOnly(e.target.checked)}
-                            style={{ accentColor: 'var(--accent)' }}
+                            style={{ width: '18px', height: '18px', accentColor: 'var(--accent)' }}
                         />
                         <AlertTriangle size={16} color={lowStockOnly ? '#ef4444' : 'var(--text-muted)'} />
-                        Show Low Stock Only (≤ 10)
+                        Low Stock Only
                     </label>
                 </div>
             </header>
 
-            <div className="content-view active">
-                <div className="stats-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                    <div className="stat-card">
-                        <div className="icon-wrapper" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
-                            <Boxes size={24} />
-                        </div>
-                        <div className="stat-info">
-                            <h3>{products.length}</h3>
-                            <p>Items on this page</p>
-                        </div>
+            <div className="stats-grid" style={{ marginBottom: '32px', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px' }}>
+                <div className="white-card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ width: '56px', height: '56px', background: 'var(--accent-light)', color: 'var(--accent)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Boxes size={28} />
                     </div>
-                    <div className="stat-card">
-                        <div className="icon-wrapper" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
-                            <AlertTriangle size={24} />
-                        </div>
-                        <div className="stat-info">
-                            <h3>{products.filter(p => p.stock <= 10).length}</h3>
-                            <p>Low Stock Items</p>
-                        </div>
+                    <div>
+                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Tracked Items</p>
+                        <h3 style={{ fontSize: '24px', margin: 0 }}>{products.length}</h3>
                     </div>
                 </div>
+                <div className="white-card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ width: '56px', height: '56px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <AlertTriangle size={28} />
+                    </div>
+                    <div>
+                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Low Stock Alert</p>
+                        <h3 style={{ fontSize: '24px', margin: 0 }}>{products.filter(p => p.stock <= 10).length}</h3>
+                    </div>
+                </div>
+            </div>
 
-                <div className="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Item</th>
-                                <th>Category</th>
-                                <th>Status</th>
-                                <th>Current Stock</th>
-                                <th>Actions</th>
+            <div className="white-card">
+                <table className="modern-table">
+                    <thead>
+                        <tr>
+                            <th style={{ width: '80px' }}>Image</th>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                            <th>Current Stock</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredProducts.map(prod => (
+                            <tr key={prod.id}>
+                                <td>
+                                    <img 
+                                        src={prod.image} 
+                                        alt={prod.name} 
+                                        style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover' }} 
+                                    />
+                                </td>
+                                <td>
+                                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{prod.name}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: #{prod.id}</div>
+                                </td>
+                                <td>{prod.category?.name || 'Uncategorized'}</td>
+                                <td>
+                                    {prod.stock === 0 ? (
+                                        <span className="status-pill warning" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>Out of Stock</span>
+                                    ) : prod.stock <= 10 ? (
+                                        <span className="status-pill warning">Low Stock</span>
+                                    ) : (
+                                        <span className="status-pill success">In Stock</span>
+                                    )}
+                                </td>
+                                <td>
+                                    <span style={{ fontSize: '16px', fontWeight: 800, color: prod.stock <= 10 ? '#ef4444' : 'var(--text-main)' }}>
+                                        {prod.stock}
+                                    </span>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                    <button className="btn-outline" onClick={() => openAdjustModal(prod)} style={{ padding: '8px 16px', fontSize: '13px' }}>
+                                        <ArrowRightLeft size={16} /> Adjust
+                                    </button>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {filteredProducts.map(prod => (
-                                <tr key={prod.id}>
-                                    <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <img src={prod.image} alt={prod.name} className="product-img" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
-                                            <span style={{ fontWeight: '500' }}>{prod.name}</span>
-                                        </div>
-                                    </td>
-                                    <td>{prod.category?.name || 'Uncategorized'}</td>
-                                    <td>
-                                        {prod.stock === 0 ? (
-                                            <span className="badge pending" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>Out of Stock</span>
-                                        ) : prod.stock <= 10 ? (
-                                            <span className="badge pending" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Low Stock</span>
-                                        ) : (
-                                            <span className="badge delivered" style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>In Stock</span>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <span style={{ fontSize: '16px', fontWeight: 'bold', color: prod.stock <= 10 ? '#ef4444' : 'var(--text-main)' }}>
-                                            {prod.stock}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button className="btn-outline" onClick={() => openAdjustModal(prod)} style={{ padding: '8px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <ArrowRightLeft size={14} /> Adjust Stock
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filteredProducts.length === 0 && (
-                                <tr>
-                                    <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                                        No products found.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                        ))}
+                        {filteredProducts.length === 0 && (
+                            <tr>
+                                <td colSpan="6" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                                    No products found matching the criteria.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
                 {!lowStockOnly && (
-                    <Pagination
-                        currentPage={pagination.page}
-                        totalPages={pagination.totalPages}
-                        onPageChange={handlePageChange}
-                    />
+                    <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
+                        <Pagination
+                            currentPage={pagination.page}
+                            totalPages={pagination.totalPages}
+                            onPageChange={handlePageChange}
+                        />
+                    </div>
                 )}
             </div>
 
             {modalOpen && selectedProduct && (
                 <div className="modal-overlay active">
-                    <div className="modal">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                            <img src={selectedProduct.image} alt="" style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }} />
+                    <div className="modal" style={{ maxWidth: '480px', padding: '32px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
+                            <img src={selectedProduct.image} alt="" style={{ width: '56px', height: '56px', borderRadius: '12px', objectFit: 'cover' }} />
                             <div>
                                 <h3 style={{ margin: 0 }}>Adjust Stock</h3>
-                                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>{selectedProduct.name}</p>
+                                <p style={{ margin: '4px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>{selectedProduct.name}</p>
                             </div>
                         </div>
 
-                        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Current Stock:</span>
-                            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-main)' }}>{selectedProduct.stock}</span>
+                        <div style={{ background: 'var(--bg-app)', padding: '20px', borderRadius: '16px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Current Inventory</span>
+                            <span style={{ fontSize: '24px', fontWeight: 800 }}>{selectedProduct.stock}</span>
                         </div>
 
                         <form onSubmit={handleAdjustStock}>
                             <div className="input-group">
-                                <label>Adjustment Type</label>
-                                <div style={{ display: 'flex', gap: '10px' }}>
+                                <label>Action</label>
+                                <div style={{ display: 'flex', gap: '12px' }}>
                                     <button
                                         type="button"
                                         onClick={() => setAdjustmentType('add')}
                                         style={{
                                             flex: 1,
-                                            padding: '12px',
-                                            borderRadius: '8px',
-                                            border: `1px solid ${adjustmentType === 'add' ? '#22c55e' : 'rgba(255,255,255,0.1)'}`,
-                                            background: adjustmentType === 'add' ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-                                            color: adjustmentType === 'add' ? '#22c55e' : 'var(--text-main)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                                            cursor: 'pointer', transition: 'all 0.2s'
+                                            padding: '14px',
+                                            borderRadius: '12px',
+                                            border: `2px solid ${adjustmentType === 'add' ? 'var(--success)' : 'var(--border-color)'}`,
+                                            background: adjustmentType === 'add' ? 'rgba(16, 185, 129, 0.05)' : 'white',
+                                            color: adjustmentType === 'add' ? 'var(--success)' : 'var(--text-main)',
+                                            fontWeight: 700,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                                         }}
                                     >
-                                        <Plus size={16} /> Add Stock
+                                        <Plus size={18} /> Add
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setAdjustmentType('deduct')}
                                         style={{
                                             flex: 1,
-                                            padding: '12px',
-                                            borderRadius: '8px',
-                                            border: `1px solid ${adjustmentType === 'deduct' ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
-                                            background: adjustmentType === 'deduct' ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-                                            color: adjustmentType === 'deduct' ? '#ef4444' : 'var(--text-main)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                                            cursor: 'pointer', transition: 'all 0.2s'
+                                            padding: '14px',
+                                            borderRadius: '12px',
+                                            border: `2px solid ${adjustmentType === 'deduct' ? 'var(--danger)' : 'var(--border-color)'}`,
+                                            background: adjustmentType === 'deduct' ? 'rgba(239, 68, 68, 0.05)' : 'white',
+                                            color: adjustmentType === 'deduct' ? 'var(--danger)' : 'var(--text-main)',
+                                            fontWeight: 700,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                                         }}
                                     >
-                                        <Minus size={16} /> Deduct Stock
+                                        <Minus size={18} /> Deduct
                                     </button>
                                 </div>
                             </div>
 
                             <div className="input-group">
-                                <label>Quantity to {adjustmentType === 'add' ? 'Add' : 'Deduct'}</label>
+                                <label>Quantity</label>
                                 <input
                                     type="number"
-                                    placeholder="Enter quantity..."
+                                    placeholder="Enter amount..."
                                     value={adjustmentAmount}
                                     onChange={e => setAdjustmentAmount(e.target.value)}
                                     min="1"
                                     required
-                                    style={{ fontSize: '18px', padding: '16px' }}
+                                    style={{ fontSize: '18px', fontWeight: 700, padding: '16px' }}
                                 />
                             </div>
 
-                            <div style={{ textAlign: 'center', margin: '20px 0', color: 'var(--text-muted)' }}>
-                                New Stock Level will be:{' '}
-                                <strong style={{ color: 'var(--text-main)', fontSize: '18px' }}>
+                            <div style={{ textAlign: 'center', marginBottom: '32px', padding: '12px', background: 'var(--bg-app)', borderRadius: '12px', fontSize: '14px', fontWeight: 600 }}>
+                                New stock will be: <span style={{ color: 'var(--accent)', fontSize: '18px' }}>
                                     {adjustmentType === 'add'
                                         ? selectedProduct.stock + (parseInt(adjustmentAmount) || 0)
                                         : Math.max(0, selectedProduct.stock - (parseInt(adjustmentAmount) || 0))
                                     }
-                                </strong>
+                                </span>
                             </div>
 
-                            <div className="modal-actions">
-                                <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary" style={{ background: adjustmentType === 'add' ? '#22c55e' : '#ef4444' }}>
-                                    Confirm Adjustment
+                            <div className="modal-actions" style={{ gap: '12px' }}>
+                                <button type="button" className="btn-outline" style={{ flex: 1 }} onClick={() => setModalOpen(false)}>Cancel</button>
+                                <button type="submit" className="btn-primary" style={{ flex: 2, justifyContent: 'center', background: adjustmentType === 'add' ? 'var(--success)' : 'var(--danger)' }}>
+                                    Confirm Update
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit2, Trash2, Plus, Type, IndianRupee, AlignLeft, Image as ImageIcon, ListFilter, Fingerprint } from 'lucide-react';
+import { Edit2, Trash2, Plus, Type, IndianRupee, AlignLeft, Image as ImageIcon, ListFilter, Fingerprint, Search } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import { API_ENDPOINTS, getHeaders } from '../apiConfig';
 
@@ -33,7 +33,7 @@ export default function Products() {
         const branchId = localStorage.getItem('selectedBranchId') || '';
         const res = await fetch(`${API_ENDPOINTS.CATEGORIES}?branchId=${branchId}`, { headers: getHeaders() });
         const data = await res.json();
-        setCategories(data.data || data); // Handle both formats
+        setCategories(data.data || data);
     };
 
     const fetchTenants = async () => {
@@ -77,7 +77,7 @@ export default function Products() {
     };
 
     const handleDelete = async (id) => {
-        if (confirm('Delete this product?')) {
+        if (confirm('Are you sure you want to delete this product?')) {
             await fetch(`${API_ENDPOINTS.PRODUCTS}/${id}`, {
                 method: 'DELETE',
                 headers: getHeaders()
@@ -96,23 +96,22 @@ export default function Products() {
     };
 
     return (
-        <>
+        <div className="dashboard-content">
             <header className="top-header">
-                <h1>Products</h1>
-            </header>
-            <div className="content-view active">
-                <div className="action-bar" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                    <button className="btn-primary" onClick={() => openModal()}><Plus size={18} /> Add Product</button>
+                <div>
+                    <h1>Product Catalog</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Manage your inventory, pricing, and product details</p>
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
                     {isAdmin && (
-                        <div className="input-wrapper" style={{ minWidth: '220px', position: 'relative' }}>
+                        <div className="input-group" style={{ marginBottom: 0, width: '200px' }}>
                             <select
-                                className="input-modern"
-                                style={{ paddingLeft: '12px', height: '40px', width: '100%', appearance: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                                 value={selectedTenant}
                                 onChange={(e) => {
                                     setSelectedTenant(e.target.value);
                                     fetchProducts(1, e.target.value);
                                 }}
+                                style={{ height: '44px' }}
                             >
                                 <option value="">All Tenants</option>
                                 {tenants.map(t => (
@@ -121,112 +120,141 @@ export default function Products() {
                             </select>
                         </div>
                     )}
+                    <button className="btn-primary" onClick={() => openModal()}>
+                        <Plus size={18} /> Add Product
+                    </button>
                 </div>
-                <div className="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Image</th>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Stock</th>
-                                <th>Price</th>
-                                <th>Actions</th>
+            </header>
+
+            <div className="white-card">
+                <table className="modern-table">
+                    <thead>
+                        <tr>
+                            <th style={{ width: '80px' }}>Image</th>
+                            <th>Product Details</th>
+                            <th>Category</th>
+                            <th>Inventory</th>
+                            <th>Price</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {products.map(prod => (
+                            <tr key={prod.id}>
+                                <td>
+                                    <img 
+                                        src={prod.image} 
+                                        alt={prod.name} 
+                                        style={{ width: '56px', height: '56px', borderRadius: '12px', objectFit: 'cover', background: '#f1f5f9' }} 
+                                    />
+                                </td>
+                                <td>
+                                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{prod.name}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>ID: #{prod.id}</div>
+                                </td>
+                                <td>
+                                    <span style={{ fontSize: '13px', fontWeight: 500 }}>{prod.category?.name || 'Uncategorized'}</span>
+                                </td>
+                                <td>
+                                    <div className={`status-pill ${prod.stock < 10 ? 'warning' : 'success'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ fontWeight: 700 }}>{prod.stock}</span> units
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--accent)' }}>₹{prod.price}</div>
+                                </td>
+                                <td>
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                        <button className="btn-outline" style={{ padding: '8px' }} onClick={() => openModal(prod)} title="Edit">
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button className="btn-outline" style={{ padding: '8px', color: 'var(--danger)' }} onClick={() => handleDelete(prod.id)} title="Delete">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {products.map(prod => (
-                                <tr key={prod.id}>
-                                    <td><img src={prod.image} alt={prod.name} className="product-img" /></td>
-                                    <td>{prod.name}</td>
-                                    <td>{prod.category?.name}</td>
-                                    <td>
-                                        <span className={`badge ${prod.stock < 10 ? 'pending' : 'delivered'}`} style={{ fontSize: '11px' }}>
-                                            {prod.stock} left
-                                        </span>
-                                    </td>
-                                    <td>₹{prod.price}</td>
-                                    <td>
-                                        <button className="action-btn edit" onClick={() => openModal(prod)}><Edit2 size={16} /> Edit</button>
-                                        <button className="action-btn delete" onClick={() => handleDelete(prod.id)}><Trash2 size={16} /> Delete</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                        ))}
+                    </tbody>
+                </table>
+
+                {products.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
+                        <ImageIcon size={64} style={{ opacity: 0.1, marginBottom: '24px' }} />
+                        <h3>No products found</h3>
+                        <p>Start by adding some items to your catalog.</p>
+                    </div>
+                )}
+
+                <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
+                    <Pagination
+                        currentPage={pagination.page}
+                        totalPages={pagination.totalPages}
+                        onPageChange={handlePageChange}
+                    />
                 </div>
-                <Pagination
-                    currentPage={pagination.page}
-                    totalPages={pagination.totalPages}
-                    onPageChange={handlePageChange}
-                />
             </div>
 
             {modalOpen && (
                 <div className="modal-overlay active">
-                    <div className="modal">
-                        <h3>{formData.id ? 'Edit Product' : 'Add Product'}</h3>
+                    <div className="modal" style={{ maxWidth: '700px', padding: '32px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                            <h3>{formData.id ? 'Edit Product' : 'Add New Product'}</h3>
+                            <button className="btn-outline" style={{ border: 'none', padding: '4px' }} onClick={() => setModalOpen(false)}>✕</button>
+                        </div>
                         <form onSubmit={handleSubmit}>
-                            <div className="input-group has-icon">
-                                <label>Name</label>
-                                <div className="input-wrapper">
-                                    <Type className="input-icon" size={18} />
-                                    <input type="text" placeholder="Product name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                                <div className="input-group">
+                                    <label>Product Name</label>
+                                    <input type="text" placeholder="e.g. Premium Cotton Tee" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
                                 </div>
-                            </div>
-                            <div className="input-group has-icon">
-                                <label>Category</label>
-                                <div className="input-wrapper">
-                                    <ListFilter className="input-icon" size={18} />
+                                <div className="input-group">
+                                    <label>Category</label>
                                     <select value={formData.categoryId} onChange={e => setFormData({ ...formData, categoryId: e.target.value })} required>
-                                        <option value="" disabled>Select a category</option>
+                                        <option value="" disabled>Choose a category</option>
                                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
-                            </div>
-                            <div className="input-group has-icon">
-                                <label>Price</label>
-                                <div className="input-wrapper">
-                                    <IndianRupee className="input-icon" size={18} />
-                                    <input type="number" placeholder="Enter price" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                                <div className="input-group">
+                                    <label>Price (INR)</label>
+                                    <input type="number" placeholder="0.00" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                                </div>
+                                <div className="input-group">
+                                    <label>Initial Stock</label>
+                                    <input type="number" value={formData.stock} onChange={e => setFormData({ ...formData, stock: e.target.value })} required />
                                 </div>
                             </div>
+
                             <div className="input-group">
-                                <label>Stock Inventory</label>
-                                <input type="number" placeholder="Available units" value={formData.stock} onChange={e => setFormData({ ...formData, stock: e.target.value })} required />
-                            </div>
-                            <div className="input-group has-icon">
                                 <label>Description</label>
-                                <div className="input-wrapper">
-                                    <AlignLeft className="input-icon align-top" size={18} />
-                                    <textarea rows="3" placeholder="Detailed product description..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} required />
-                                </div>
+                                <textarea rows="3" placeholder="Describe the product features..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} required />
                             </div>
-                            <div className="input-group has-icon">
+
+                            <div className="input-group">
                                 <label>Image URL</label>
-                                <div className="input-wrapper">
-                                    <ImageIcon className="input-icon" size={18} />
-                                    <input type="url" placeholder="https://..." value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} required />
+                                <input type="url" placeholder="https://images.unsplash.com/..." value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} required />
+                            </div>
+
+                            <div style={{ padding: '20px', background: 'var(--accent-light)', borderRadius: '16px', marginBottom: '32px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                                    <Fingerprint size={18} className="text-accent" />
+                                    <h4 style={{ fontSize: '14px', color: 'var(--accent)' }}>Meta Integration</h4>
+                                </div>
+                                <div className="input-group" style={{ marginBottom: 0 }}>
+                                    <label>Retailer ID (Meta Content ID)</label>
+                                    <input type="text" placeholder="e.g. SKU_123" value={formData.retailerId} onChange={e => setFormData({ ...formData, retailerId: e.target.value })} />
+                                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>Must match the Content ID in your Meta Commerce Manager catalog.</p>
                                 </div>
                             </div>
-                            <div className="input-group has-icon">
-                                <label>Retailer ID (Meta Content ID)</label>
-                                <div className="input-wrapper">
-                                    <Fingerprint className="input-icon" size={18} />
-                                    <input type="text" placeholder="e.g. oiv7t6taic" value={formData.retailerId} onChange={e => setFormData({ ...formData, retailerId: e.target.value })} />
-                                </div>
-                                <small style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                                    Must match the "Content ID" in Meta Commerce Manager
-                                </small>
-                            </div>
-                            <div className="modal-actions">
-                                <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary">Save</button>
+
+                            <div className="modal-actions" style={{ gap: '12px' }}>
+                                <button type="button" className="btn-outline" style={{ flex: 1 }} onClick={() => setModalOpen(false)}>Cancel</button>
+                                <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{formData.id ? 'Save Changes' : 'Create Product'}</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

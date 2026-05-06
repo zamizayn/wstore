@@ -13,6 +13,8 @@ import Landing from './pages/Landing';
 import OnboardingGuide from './pages/OnboardingGuide';
 import Inventory from './pages/Inventory';
 
+import Support from './pages/Support';
+
 const ProtectedRoute = ({ children }) => {
     const token = localStorage.getItem('adminToken');
     if (!token) return <Navigate to="/login" />;
@@ -43,6 +45,7 @@ export default function App() {
                     <Route path="inventory" element={<Inventory />} />
                     <Route path="orders" element={<Orders />} />
                     <Route path="customers" element={<Customers />} />
+                    <Route path="support" element={<Support />} />
                 </Route>
             </Routes>
         </Router>

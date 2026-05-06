@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { Product, Category, Order, Customer, Branch, Tenant, CustomerLog, Admin } = require('../models');
+const { Product, Category, Order, Customer, Branch, Tenant, CustomerLog, Admin, FcmToken, Notification } = require('../models');
 const { sendTextMessage, sendButtonMessage, syncProductToMeta } = require('../services/whatsappService');
 const { Op, fn, col, literal } = require('sequelize');
 
@@ -139,8 +139,8 @@ const authenticateToken = (req, res, next) => {
                 return { ...existingWhere, branchId: { [Op.in]: branchIds } };
             }
 
-            // If branch admin, scope by branchId
-            return { ...existingWhere, branchId: req.user.branchId };
+            // If branch admin, scope by branchId OR null (for general tenant logs)
+            return { ...existingWhere, branchId: { [Op.or]: [req.user.branchId, null] } };
         };
 
         next();
@@ -289,6 +289,16 @@ router.post('/orders', async (req, res) => {
     }
 });
 
+router.get('/orders/:id', async (req, res) => {
+    try {
+        const order = await Order.findByPk(req.params.id);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        res.json(order);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 router.get('/orders', async (req, res) => {
     try {
         const { page = 1, limit = 10, status, branchId, search, startDate, endDate } = req.query;
@@ -397,6 +407,19 @@ router.put('/orders/:id/status', async (req, res) => {
     }
 });
 
+router.put('/orders/:id/payment-status', async (req, res) => {
+    try {
+        const order = await Order.findByPk(req.params.id);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        order.paymentStatus = req.body.paymentStatus;
+        await order.save();
+        res.json(order);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- Customers & Promotions ---
 router.get('/customers', async (req, res) => {
     try {
@@ -485,6 +508,65 @@ router.post('/customers/broadcast', async (req, res) => {
 
 
     res.json({ successCount, failCount });
+});
+
+// --- Support Requests API ---
+router.get('/support-requests', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        const where = await req.getScope({ actionType: 'SUPPORT_REQUEST' });
+
+        const { count, rows } = await CustomerLog.findAndCountAll({
+            where,
+            include: [{
+                model: Customer,
+                as: 'customer',
+                attributes: ['phone', 'name']
+            }],
+            limit,
+            offset,
+            order: [['createdAt', 'DESC']]
+        });
+
+        res.json({
+            data: rows,
+            total: count,
+            page,
+            totalPages: Math.ceil(count / limit)
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+router.post('/support-requests/:id/reply', async (req, res) => {
+    try {
+        const { replyMessage } = req.body;
+        if (!replyMessage) return res.status(400).json({ error: 'Reply message is required' });
+
+        const log = await CustomerLog.findByPk(req.params.id);
+        if (!log) return res.status(404).json({ error: 'Support request not found' });
+
+        const tenantId = req.user.tenantId || log.tenantId;
+        const config = await getTenantConfig(tenantId);
+
+        await sendTextMessage(log.customerPhone, `🆘 *Support Reply*\n\n${replyMessage}`, config);
+
+        // Optional: Log the admin reply as well
+        await CustomerLog.create({
+            customerPhone: log.customerPhone,
+            actionType: 'SUPPORT_REPLY',
+            details: { reply: replyMessage, originalRequestId: log.id },
+            branchId: log.branchId
+        });
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // --- Analytics API ---
@@ -789,6 +871,93 @@ router.put('/branches/:id', async (req, res) => {
 
         await branch.update(updateData);
         res.json(branch);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ==================== FCM PUSH NOTIFICATIONS ====================
+
+// Register FCM token
+router.post('/fcm/register', async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token is required' });
+
+        // Upsert: if token exists, update the admin association
+        const adminId = req.user.branchId || req.user.tenantId || 0;
+        const [fcm, created] = await FcmToken.findOrCreate({
+            where: { token },
+            defaults: {
+                token,
+                adminId,
+                tenantId: req.user.tenantId || null,
+                branchId: req.user.branchId || null,
+                role: req.user.role
+            }
+        });
+
+        if (!created) {
+            await fcm.update({
+                adminId,
+                tenantId: req.user.tenantId || null,
+                branchId: req.user.branchId || null,
+                role: req.user.role
+            });
+        }
+
+        res.json({ success: true, created });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Unregister FCM token (on logout)
+router.delete('/fcm/unregister', async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (token) {
+            await FcmToken.destroy({ where: { token } });
+        }
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Get notification history for current user's tenant
+router.get('/notifications', async (req, res) => {
+    try {
+        const where = {};
+        if (req.user.tenantId) {
+            where.tenantId = req.user.tenantId;
+        }
+
+        const notifications = await Notification.findAll({
+            where,
+            order: [['createdAt', 'DESC']],
+            limit: 20
+        });
+
+        const unreadCount = await Notification.count({
+            where: { ...where, isRead: false }
+        });
+
+        res.json({ notifications, unreadCount });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Mark notifications as read
+router.put('/notifications/read', async (req, res) => {
+    try {
+        const where = {};
+        if (req.user.tenantId) {
+            where.tenantId = req.user.tenantId;
+        }
+        await Notification.update({ isRead: true }, { where });
+        res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

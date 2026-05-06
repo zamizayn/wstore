@@ -93,170 +93,152 @@ export default function Tenants() {
     };
 
     return (
-        <>
+        <div className="dashboard-content">
             <header className="top-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div>
                     <h1>Platform Tenants</h1>
-                    <span className="badge">{tenants.length} Businesses</span>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Manage business accounts and WhatsApp configurations</p>
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    {/* <button className="btn-outline" onClick={() => navigate('/admin/onboard-wizard')}>
+                        <Settings2 size={18} /> Launch Wizard
+                    </button> */}
+                    <button className="btn-primary" onClick={() => { setEditingId(null); setModalOpen(true); }}>
+                        <Plus size={18} /> Add Tenant
+                    </button>
                 </div>
             </header>
 
-            <div className="content-view active">
-                <div className="action-bar">
-                    <button className="btn-primary" onClick={() => { setEditingId(null); setModalOpen(true); }}>
-                        <Plus size={18} /> Onboard New Tenant
-                    </button>
-                    <button className="btn-outline" onClick={() => navigate('/onboard-wizard')}>
-                        <Settings2 size={18} /> Launch Wizard
-                    </button>
-                </div>
-
-                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
-                    {tenants.map(tenant => (
-                        <div key={tenant.id} className={`stat-card ${!tenant.isActive ? 'inactive' : ''}`} style={{ padding: '24px', opacity: tenant.isActive ? 1 : 0.6 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div className="icon-wrapper" style={{ color: 'var(--accent)', background: 'var(--accent-light)', padding: '12px', borderRadius: '12px' }}>
-                                        <Building2 size={24} />
-                                    </div>
-                                    <div>
-                                        <h3 style={{ margin: 0, fontSize: '18px' }}>{tenant.name}</h3>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '2px' }}>
-                                            {tenant.isActive ? <CheckCircle2 size={12} style={{ color: 'var(--success)' }} /> : <XCircle size={12} style={{ color: 'var(--danger)' }} />}
-                                            <span style={{ color: 'var(--text-muted)' }}>{tenant.isActive ? 'Active' : 'Disabled'}</span>
-                                        </div>
-                                    </div>
+            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '24px' }}>
+                {tenants.map(tenant => (
+                    <div key={tenant.id} className="white-card" style={{ padding: '24px', opacity: tenant.isActive ? 1 : 0.7 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ width: '48px', height: '48px', background: 'var(--accent-light)', color: 'var(--accent)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Building2 size={24} />
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button className="action-btn" onClick={() => handleEdit(tenant)}><Edit size={16} /></button>
-                                    <button className="action-btn delete" onClick={() => handleDelete(tenant.id)}><Trash2 size={16} /></button>
-                                </div>
-                            </div>
-
-                            <div className="tenant-meta-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                <div className="meta-item" style={{ background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '10px' }}>
-                                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>Phone Number ID</div>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Phone size={14} className="text-muted" /> {tenant.phoneNumberId || 'Not set'}
-                                    </div>
-                                </div>
-                                <div className="meta-item" style={{ background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '10px' }}>
-                                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>WABA ID</div>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Settings2 size={14} className="text-muted" /> {tenant.wabaId || 'Not set'}
-                                    </div>
-                                </div>
-                                <div className="meta-item" style={{ background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '10px' }}>
-                                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>Meta Catalog ID</div>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Settings2 size={14} className="text-muted" /> {tenant.catalogId || 'Not set'}
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '18px' }}>{tenant.name}</h3>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                        <span className={`status-pill ${tenant.isActive ? 'success' : 'warning'}`} style={{ fontSize: '10px', padding: '2px 8px' }}>
+                                            {tenant.isActive ? 'ACTIVE' : 'DISABLED'}
+                                        </span>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>ID: #{tenant.id}</span>
                                     </div>
                                 </div>
                             </div>
-
-                            <div style={{ marginTop: '16px', background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '10px' }}>
-                                <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>Access Token</div>
-                                <div style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Key size={14} className="text-muted" />
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {tenant.whatsappToken ? '••••••••••••••••' : 'Missing Configuration'}
-                                    </span>
-                                </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn-outline" style={{ padding: '8px' }} onClick={() => handleEdit(tenant)} title="Edit"><Edit size={16} /></button>
+                                <button className="btn-outline" style={{ padding: '8px', color: 'var(--danger)' }} onClick={() => handleDelete(tenant.id)} title="Delete"><Trash2 size={16} /></button>
                             </div>
+                        </div>
 
-                            {!tenant.webhooksEnabled && tenant.isActive && tenant.wabaId && (
-                                <div style={{ marginTop: '20px' }}>
-                                    <button
-                                        className="btn-primary w-full"
-                                        style={{ background: 'var(--success)', boxShadow: 'none', fontSize: '13px', padding: '10px' }}
-                                        onClick={() => handleEnableWebhooks(tenant.id)}
-                                    >
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                            <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '12px' }}>
+                                <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Phone ID</p>
+                                <p style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tenant.phoneNumberId || '—'}</p>
+                            </div>
+                            <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '12px' }}>
+                                <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>WABA ID</p>
+                                <p style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tenant.wabaId || '—'}</p>
+                            </div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '12px', marginBottom: '24px' }}>
+                            <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Meta Access Token</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Key size={14} style={{ color: 'var(--text-muted)' }} />
+                                <p style={{ fontSize: '13px', fontWeight: 600 }}>{tenant.whatsappToken ? '••••••••••••••••' : 'Not Configured'}</p>
+                            </div>
+                        </div>
+
+                        {tenant.isActive && tenant.wabaId && (
+                            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', justifyContent: 'center' }}>
+                                {tenant.webhooksEnabled ? (
+                                    <div style={{ color: 'var(--success)', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <CheckCircle2 size={16} /> Webhooks Subscribed
+                                    </div>
+                                ) : (
+                                    <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', background: 'var(--success)' }} onClick={() => handleEnableWebhooks(tenant.id)}>
                                         <Globe size={16} /> Enable Meta Webhooks
                                     </button>
-                                </div>
-                            )}
-                            {tenant.webhooksEnabled && (
-                                <div style={{ marginTop: '20px', textAlign: 'center', color: 'var(--success)', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                                    <CheckCircle2 size={16} /> Webhooks Active
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                {tenants.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-muted)' }}>
-                        <Building2 size={64} style={{ opacity: 0.1, marginBottom: '24px' }} />
-                        <h2>No tenants onboarded</h2>
-                        <p>Get started by adding your first business tenant.</p>
-                        <button className="btn-primary" style={{ marginTop: '20px', width: 'auto', display: 'inline-block' }} onClick={() => setModalOpen(true)}>Add Tenant Now</button>
+                                )}
+                            </div>
+                        )}
                     </div>
-                )}
+                ))}
             </div>
+
+            {tenants.length === 0 && (
+                <div className="white-card" style={{ textAlign: 'center', padding: '80px 0' }}>
+                    <Building2 size={64} style={{ color: 'var(--text-muted)', opacity: 0.2, marginBottom: '24px' }} />
+                    <h2>No tenants found</h2>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Start by onboarding your first business account.</p>
+                    <button className="btn-primary" style={{ margin: '0 auto' }} onClick={() => setModalOpen(true)}>Add New Tenant</button>
+                </div>
+            )}
 
             {modalOpen && (
                 <div className="modal-overlay active">
-                    <div className="modal" style={{ maxWidth: '500px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                            <div style={{ background: 'var(--accent-light)', padding: '10px', borderRadius: '12px' }}>
-                                <Globe size={24} className="text-accent" />
-                            </div>
-                            <h3 style={{ margin: 0 }}>{editingId ? 'Update Tenant' : 'Onboard New Tenant'}</h3>
+                    <div className="modal" style={{ maxWidth: '540px', padding: '32px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                            <h3>{editingId ? 'Edit Tenant' : 'New Tenant'}</h3>
+                            <button className="btn-outline" style={{ padding: '4px', border: 'none' }} onClick={() => setModalOpen(false)}>✕</button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="input-group">
                                 <label>Business Name</label>
-                                <input type="text" placeholder="e.g. Acme Corporation" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                                <input type="text" placeholder="e.g. Aventus Informatics" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                 <div className="input-group">
                                     <label>Meta Phone ID</label>
-                                    <input type="text" placeholder="109283..." value={formData.phoneNumberId} onChange={e => setFormData({ ...formData, phoneNumberId: e.target.value })} />
+                                    <input type="text" value={formData.phoneNumberId} onChange={e => setFormData({ ...formData, phoneNumberId: e.target.value })} />
                                 </div>
                                 <div className="input-group">
                                     <label>Meta WABA ID</label>
-                                    <input type="text" placeholder="WABA_..." value={formData.wabaId} onChange={e => setFormData({ ...formData, wabaId: e.target.value })} />
+                                    <input type="text" value={formData.wabaId} onChange={e => setFormData({ ...formData, wabaId: e.target.value })} />
                                 </div>
                             </div>
 
                             <div className="input-group">
                                 <label>Meta Access Token</label>
-                                <input type="password" placeholder="System User Access Token" value={formData.whatsappToken} onChange={e => setFormData({ ...formData, whatsappToken: e.target.value })} />
+                                <input type="password" value={formData.whatsappToken} onChange={e => setFormData({ ...formData, whatsappToken: e.target.value })} />
                             </div>
 
                             <div className="input-group">
-                                <label>Meta Catalog ID</label>
-                                <input type="text" placeholder="Optional: To enable Native Commerce" value={formData.catalogId} onChange={e => setFormData({ ...formData, catalogId: e.target.value })} />
+                                <label>Meta Catalog ID (Optional)</label>
+                                <input type="text" value={formData.catalogId} onChange={e => setFormData({ ...formData, catalogId: e.target.value })} />
                             </div>
 
-                            <div style={{ padding: '16px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', marginBottom: '20px' }}>
-                                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--accent)' }}>Tenant Admin Account</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div style={{ padding: '20px', background: 'var(--accent-light)', borderRadius: '16px', marginBottom: '24px' }}>
+                                <h4 style={{ fontSize: '13px', color: 'var(--accent)', marginBottom: '16px' }}>Admin Credentials</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                     <div className="input-group" style={{ marginBottom: 0 }}>
                                         <label>Username</label>
-                                        <input type="text" placeholder="Username" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} />
+                                        <input type="text" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} />
                                     </div>
                                     <div className="input-group" style={{ marginBottom: 0 }}>
                                         <label>Password</label>
-                                        <input type="password" placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
+                                        <input type="password" placeholder={editingId ? 'Leave blank to keep current' : '••••••••'} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
                                     </div>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', marginBottom: '20px' }}>
-                                <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
-                                <label style={{ marginBottom: 0 }}>Tenant is active and allowed to use services</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
+                                <input type="checkbox" id="tenantActive" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                <label htmlFor="tenantActive" style={{ marginBottom: 0, fontWeight: 500 }}>Active and enabled</label>
                             </div>
 
-                            <div className="modal-actions">
-                                <button type="button" className="btn-outline" onClick={() => setModalOpen(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary">{editingId ? 'Save Changes' : 'Create Tenant'}</button>
+                            <div className="modal-actions" style={{ gap: '12px' }}>
+                                <button type="button" className="btn-outline" style={{ flex: 1 }} onClick={() => setModalOpen(false)}>Cancel</button>
+                                <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{editingId ? 'Save Changes' : 'Create Tenant'}</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

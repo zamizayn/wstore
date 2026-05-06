@@ -23,7 +23,9 @@ module.exports = (sequelize, DataTypes) => {
     total: DataTypes.FLOAT,
     status: DataTypes.STRING,
     branchId: DataTypes.INTEGER,
-    cancellationReason: DataTypes.STRING
+    cancellationReason: DataTypes.STRING,
+    paymentMethod: DataTypes.STRING,
+    paymentStatus: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Order',
