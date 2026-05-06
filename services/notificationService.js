@@ -5,9 +5,11 @@ const { FcmToken, Notification } = require('../models');
 // Initialize Firebase Admin SDK
 const serviceAccount = require(path.join(__dirname, '../config/firebase-service-account.json'));
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
 
 /**
  * Send push notification to all admins of a specific tenant
@@ -30,7 +32,6 @@ async function sendToTenant(tenantId, title, body, type = 'general', extraData =
         });
 
         if (tokenRecords.length === 0) return;
-
         const tokens = tokenRecords.map(t => t.token);
 
         const message = {
@@ -41,26 +42,44 @@ async function sendToTenant(tenantId, title, body, type = 'general', extraData =
             }
         };
 
-        // Send to each token (Firebase v12+ uses sendEachForMulticast)
-        const response = await admin.messaging().sendEachForMulticast({
-            tokens,
-            ...message
-        });
+        // Firebase v12+ sendEachForMulticast has a 500-token limit per call
+        const CHUNK_SIZE = 500;
+        let successCount = 0;
+        let totalSent = 0;
+        const tokensToRemove = new Set();
 
-        // Clean up invalid tokens
-        const tokensToRemove = [];
-        response.responses.forEach((resp, idx) => {
-            if (!resp.success && resp.error?.code === 'messaging/registration-token-not-registered') {
-                tokensToRemove.push(tokens[idx]);
-            }
-        });
+        for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
+            const tokenChunk = tokens.slice(i, i + CHUNK_SIZE);
+            const response = await admin.messaging().sendEachForMulticast({
+                tokens: tokenChunk,
+                ...message
+            });
 
-        if (tokensToRemove.length > 0) {
-            await FcmToken.destroy({ where: { token: tokensToRemove } });
-            console.log(`[FCM] Cleaned up ${tokensToRemove.length} stale tokens`);
+            successCount += response.successCount;
+            totalSent += tokenChunk.length;
+
+            // Identify invalid/stale tokens
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const errorCode = resp.error?.code;
+                    if (
+                        errorCode === 'messaging/registration-token-not-registered' ||
+                        errorCode === 'messaging/invalid-registration-token'
+                    ) {
+                        tokensToRemove.add(tokenChunk[idx]);
+                    }
+                }
+            });
         }
 
-        console.log(`[FCM] Sent "${title}" to ${response.successCount}/${tokens.length} devices for tenant ${tenantId}`);
+        // Clean up invalid tokens
+        if (tokensToRemove.size > 0) {
+            const invalidTokens = Array.from(tokensToRemove);
+            await FcmToken.destroy({ where: { token: invalidTokens } });
+            console.log(`[FCM] Cleaned up ${invalidTokens.length} stale/invalid tokens`);
+        }
+
+        console.log(`[FCM] Sent "${title}" to ${successCount}/${totalSent} devices for tenant ${tenantId}`);
     } catch (error) {
         console.error('[FCM] Error sending notification:', error.message);
     }

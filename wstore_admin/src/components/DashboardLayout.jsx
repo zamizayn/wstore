@@ -48,7 +48,7 @@ export default function DashboardLayout() {
     // Fetch notifications
     const fetchNotifications = useCallback(async () => {
         try {
-            const res = await fetch(API_ENDPOINTS.NOTIFICATIONS, { headers: getHeaders() });
+            const res = await fetch(`${API_ENDPOINTS.NOTIFICATIONS}?limit=10`, { headers: getHeaders() });
             if (res.ok) {
                 const data = await res.json();
                 setNotifications(data.notifications || []);
@@ -65,25 +65,32 @@ export default function DashboardLayout() {
             try {
                 const token = await requestNotificationPermission();
                 if (token) {
-                    await fetch(API_ENDPOINTS.FCM_REGISTER, {
-                        method: 'POST',
-                        headers: getHeaders(),
-                        body: JSON.stringify({ token })
-                    });
-                    localStorage.setItem('fcmToken', token);
-                    console.log('[FCM] Token registered with backend');
+                    // Only register if token is different from what we last registered
+                    const lastToken = localStorage.getItem('fcmToken');
+                    if (lastToken === token) {
+                        console.log('[FCM] Token already registered this session');
+                    } else {
+                        const res = await fetch(API_ENDPOINTS.FCM_REGISTER, {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            body: JSON.stringify({ token })
+                        });
+
+                        if (res.ok) {
+                            localStorage.setItem('fcmToken', token);
+                            console.log('[FCM] Token registered with backend');
+                        } else {
+                            throw new Error(`Server returned ${res.status}`);
+                        }
+                    }
                 }
             } catch (e) {
-                console.error('[FCM] Init error:', e);
+                console.error('[FCM] Init error:', e.message);
             }
         };
 
         initFCM();
         fetchNotifications();
-
-        // Poll every 30 seconds
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
     }, [fetchNotifications]);
 
     // Listen for foreground messages
@@ -349,24 +356,41 @@ export default function DashboardLayout() {
                                                 <p>No notifications yet</p>
                                             </div>
                                         ) : (
-                                            notifications.map(n => (
-                                                <div
-                                                    key={n.id}
-                                                    className={`notification-item ${!n.isRead ? 'unread' : ''}`}
-                                                    onClick={() => {
-                                                        if (n.type === 'new_order') navigate('/admin/orders');
-                                                        else if (n.type === 'support_request') navigate('/admin/support');
-                                                        setBellOpen(false);
-                                                    }}
-                                                >
-                                                    <span className="notification-icon">{getNotificationIcon(n.type)}</span>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{n.title}</div>
-                                                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.body}</div>
+                                            <>
+                                                {notifications.map(n => (
+                                                    <div
+                                                        key={n.id}
+                                                        className={`notification-item ${!n.isRead ? 'unread' : ''}`}
+                                                        onClick={() => {
+                                                            if (n.type === 'new_order') navigate('/admin/orders');
+                                                            else if (n.type === 'support_request') navigate('/admin/support');
+                                                            setBellOpen(false);
+                                                        }}
+                                                    >
+                                                        <span className="notification-icon">{getNotificationIcon(n.type)}</span>
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{n.title}</div>
+                                                            <div style={{ fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.body}</div>
+                                                        </div>
+                                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{timeAgo(n.createdAt)}</span>
                                                     </div>
-                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{timeAgo(n.createdAt)}</span>
+                                                ))}
+                                                <div
+                                                    style={{
+                                                        padding: '12px',
+                                                        textAlign: 'center',
+                                                        borderTop: '1px solid var(--border-color)',
+                                                        background: 'var(--bg-light)',
+                                                        cursor: 'pointer',
+                                                        fontSize: '13px',
+                                                        fontWeight: 600,
+                                                        color: 'var(--accent)'
+                                                    }}
+                                                    onClick={() => { navigate('/admin/notifications'); setBellOpen(false); }}
+                                                >
+                                                    View All Notifications
                                                 </div>
-                                            ))
+                                            </>
                                         )}
                                     </div>
                                 </div>

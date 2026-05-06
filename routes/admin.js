@@ -999,22 +999,33 @@ router.delete('/fcm/unregister', async (req, res) => {
 // Get notification history for current user's tenant
 router.get('/notifications', async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
+
         const where = {};
         if (req.user.tenantId) {
             where.tenantId = req.user.tenantId;
         }
 
-        const notifications = await Notification.findAll({
+        const { count, rows } = await Notification.findAndCountAll({
             where,
             order: [['createdAt', 'DESC']],
-            limit: 20
+            limit,
+            offset
         });
 
         const unreadCount = await Notification.count({
             where: { ...where, isRead: false }
         });
 
-        res.json({ notifications, unreadCount });
+        res.json({ 
+            notifications: rows, 
+            unreadCount,
+            total: count,
+            page,
+            totalPages: Math.ceil(count / limit)
+        });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
