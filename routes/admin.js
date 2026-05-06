@@ -459,14 +459,19 @@ router.get('/customers/:phone/orders', async (req, res) => {
 
 router.get('/customers/:phone/logs', async (req, res) => {
     try {
-        const logs = await CustomerLog.findAll({
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        const { count, rows } = await CustomerLog.findAndCountAll({
             where: await req.getScope({ customerPhone: req.params.phone }),
             order: [['createdAt', 'DESC']],
-            limit: 100
+            limit,
+            offset
         });
 
         // Enrich logs with names for better display
-        const enrichedLogs = await Promise.all(logs.map(async (log) => {
+        const enrichedLogs = await Promise.all(rows.map(async (log) => {
             const data = log.toJSON();
             const { details, actionType } = data;
 
@@ -480,7 +485,12 @@ router.get('/customers/:phone/logs', async (req, res) => {
             return data;
         }));
 
-        res.json(enrichedLogs);
+        res.json({
+            data: enrichedLogs,
+            total: count,
+            page,
+            totalPages: Math.ceil(count / limit)
+        });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

@@ -8,7 +8,7 @@ const { CustomerLog } = require('./models');
 
 const webhookRoutes = require('./routes/webhook');
 const adminRoutes = require('./routes/admin');
-const appRoutes = require('./app/routes');
+// const appRoutes = require('./app/routes');
 
 const app = express();
 
@@ -21,7 +21,7 @@ app.get('/', (req, res) => {
 
 app.use('/webhook', webhookRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/app', appRoutes);
+// app.use('/api/app', appRoutes);
 const PORT = process.env.PORT || 3000;
 
 // Schedule cron job to run every day at midnight to purge logs older than 7 days
@@ -30,7 +30,7 @@ cron.schedule('0 0 * * *', async () => {
     try {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        
+
         const deletedCount = await CustomerLog.destroy({
             where: {
                 createdAt: {

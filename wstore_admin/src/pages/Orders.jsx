@@ -22,7 +22,8 @@ export default function Orders() {
         customerName: '',
         address: '',
         items: [],
-        status: 'pending'
+        status: 'pending',
+        paymentMethod: 'Cash on Delivery'
     });
     const [filters, setFilters] = useState({
         status: '',
@@ -170,7 +171,7 @@ export default function Orders() {
         });
 
         setModalOpen(false);
-        setFormData({ customerPhone: '', customerName: '', address: '', items: [], status: 'pending' });
+        setFormData({ customerPhone: '', customerName: '', address: '', items: [], status: 'pending', paymentMethod: 'Cash on Delivery' });
         fetchOrders();
     };
 
@@ -312,6 +313,13 @@ export default function Orders() {
                                         <textarea style={{ height: '100px' }} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} required />
                                     </div>
                                     <div className="input-group">
+                                        <label>Payment Mode</label>
+                                        <select value={formData.paymentMethod} onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}>
+                                            <option value="Cash on Delivery">Cash on Delivery</option>
+                                            <option value="Online Payment">Online Payment</option>
+                                        </select>
+                                    </div>
+                                    <div className="input-group">
                                         <label>Add Product</label>
                                         <select onChange={(e) => { if(e.target.value) addItem(e.target.value); e.target.value = ''; }}>
                                             <option value="">Search Products...</option>
@@ -388,17 +396,29 @@ export default function Orders() {
                             <button className="btn-outline" style={{ border: 'none', padding: '4px' }} onClick={() => setViewModalOpen(false)}>✕</button>
                         </div>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
                             <div>
-                                <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>Customer Info</h4>
+                                <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Customer Info</h4>
                                 <p style={{ fontWeight: 700 }}>{viewingOrder.customerName || 'N/A'}</p>
                                 <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{viewingOrder.customerPhone}</p>
                             </div>
                             <div>
-                                <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>Payment Status</h4>
-                                <span className={`status-pill ${viewingOrder.paymentStatus === 'paid' ? 'success' : 'warning'}`}>
-                                    {viewingOrder.paymentStatus || 'unpaid'}
-                                </span>
+                                <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Payment Details</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <span className={`status-pill ${viewingOrder.paymentStatus === 'paid' ? 'success' : 'warning'}`} style={{ alignSelf: 'flex-start' }}>
+                                        {viewingOrder.paymentStatus || 'unpaid'}
+                                    </span>
+                                    <div style={{ fontSize: '13px', fontWeight: 600 }}>
+                                        Mode: <span style={{ color: 'var(--accent)' }}>{viewingOrder.paymentMethod || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '32px' }}>
+                            <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Location Details</h4>
+                            <div style={{ background: 'var(--bg-app)', padding: '16px', borderRadius: '12px', fontSize: '13px', lineHeight: 1.5, border: '1px solid var(--border-color)' }}>
+                                {viewingOrder.address}
                             </div>
                         </div>
 

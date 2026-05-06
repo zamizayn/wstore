@@ -13,6 +13,8 @@ export default function Customers() {
     const [historyOrders, setHistoryOrders] = useState([]);
     const [logsOpen, setLogsOpen] = useState(false);
     const [activityLogs, setActivityLogs] = useState([]);
+    const [logsPagination, setLogsPagination] = useState({ page: 1, totalPages: 1 });
+    const [loadingLogs, setLoadingLogs] = useState(false);
     const [activeCustomer, setActiveCustomer] = useState(null);
     const [broadcastMsg, setBroadcastMsg] = useState('');
     const [sending, setSending] = useState(false);
@@ -39,14 +41,38 @@ export default function Customers() {
         setHistoryOpen(true);
     };
 
-    const fetchLogs = async (customer) => {
-        const res = await fetch(`${API_ENDPOINTS.CUSTOMERS}/${customer.phone}/logs`, {
-            headers: getHeaders()
-        });
-        const data = await res.json();
-        setActivityLogs(data);
-        setActiveCustomer(customer);
-        setLogsOpen(true);
+    const fetchLogs = async (customer, page = 1) => {
+        if (loadingLogs) return;
+        setLoadingLogs(true);
+        try {
+            const res = await fetch(`${API_ENDPOINTS.CUSTOMERS}/${customer.phone}/logs?page=${page}&limit=20`, {
+                headers: getHeaders()
+            });
+            const result = await res.json();
+
+            if (page === 1) {
+                setActivityLogs(result.data || []);
+            } else {
+                setActivityLogs(prev => [...prev, ...(result.data || [])]);
+            }
+
+            setLogsPagination({ page: result.page, totalPages: result.totalPages });
+            setActiveCustomer(customer);
+            setLogsOpen(true);
+        } catch (error) {
+            console.error("Failed to fetch logs:", error);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
+
+    const handleLogsScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        if (scrollHeight - scrollTop <= clientHeight + 50) { // 50px threshold
+            if (logsPagination.page < logsPagination.totalPages && !loadingLogs) {
+                fetchLogs(activeCustomer, logsPagination.page + 1);
+            }
+        }
     };
 
     useEffect(() => { fetchCustomers(); }, []);
@@ -54,8 +80,8 @@ export default function Customers() {
     const formatLogDetails = (log) => {
         const { details, actionType } = log;
         if (!details) return '';
-        
-        switch(actionType) {
+
+        switch (actionType) {
             case 'CATEGORY_VIEWED':
                 return <span>Viewing Category: <strong>{details.categoryName || `ID: ${details.categoryId}`}</strong></span>;
             case 'PRODUCT_VIEWED':
@@ -125,15 +151,15 @@ export default function Customers() {
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <button className="btn-outline" onClick={toggleAll}>
-                        {selectedPhones.length === customers.length ? <CheckSquare size={18}/> : <Square size={18}/>}
+                        {selectedPhones.length === customers.length ? <CheckSquare size={18} /> : <Square size={18} />}
                         {selectedPhones.length === customers.length ? 'Deselect All' : 'Select All Page'}
                     </button>
-                    <button 
-                        className="btn-primary" 
+                    <button
+                        className="btn-primary"
                         disabled={selectedPhones.length === 0}
                         onClick={() => setModalOpen(true)}
                     >
-                        <Send size={18}/> Broadcast ({selectedPhones.length})
+                        <Send size={18} /> Broadcast ({selectedPhones.length})
                     </button>
                 </div>
             </header>
@@ -142,7 +168,7 @@ export default function Customers() {
                 <table className="modern-table">
                     <thead>
                         <tr>
-                            <th style={{width: '40px'}}>#</th>
+                            <th style={{ width: '40px' }}>#</th>
                             <th>Customer Info</th>
                             <th>Last Active</th>
                             <th style={{ textAlign: 'right' }}>Actions</th>
@@ -150,7 +176,7 @@ export default function Customers() {
                     </thead>
                     <tbody>
                         {customers.map(cust => (
-                            <tr key={cust.id} onClick={() => toggleSelect(cust.phone)} style={{cursor: 'pointer'}}>
+                            <tr key={cust.id} onClick={() => toggleSelect(cust.phone)} style={{ cursor: 'pointer' }}>
                                 <td>
                                     {selectedPhones.includes(cust.phone) ? <CheckSquare size={20} className="text-accent" /> : <Square size={20} style={{ color: 'var(--border-hover)' }} />}
                                 </td>
@@ -194,10 +220,10 @@ export default function Customers() {
                 )}
 
                 <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
-                    <Pagination 
-                        currentPage={pagination.page} 
-                        totalPages={pagination.totalPages} 
-                        onPageChange={(page) => fetchCustomers(page)} 
+                    <Pagination
+                        currentPage={pagination.page}
+                        totalPages={pagination.totalPages}
+                        onPageChange={(page) => fetchCustomers(page)}
                     />
                 </div>
             </div>
@@ -207,17 +233,17 @@ export default function Customers() {
                 <div className="modal-overlay active">
                     <div className="modal" style={{ maxWidth: '500px', padding: '32px' }}>
                         <h3>Send Broadcast Message</h3>
-                        <p style={{fontSize: '14px', color: 'var(--text-muted)', margin: '12px 0 24px'}}>
+                        <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '12px 0 24px' }}>
                             Your message will be sent to {selectedPhones.length} customers via WhatsApp.
                         </p>
                         <form onSubmit={handleBroadcast}>
                             <div className="input-group">
                                 <label>Message Content</label>
-                                <textarea 
-                                    rows="6" 
-                                    placeholder="Write your update or promotional message..." 
-                                    value={broadcastMsg} 
-                                    onChange={e => setBroadcastMsg(e.target.value)} 
+                                <textarea
+                                    rows="6"
+                                    placeholder="Write your update or promotional message..."
+                                    value={broadcastMsg}
+                                    onChange={e => setBroadcastMsg(e.target.value)}
                                     required
                                     autoFocus
                                 />
@@ -242,9 +268,12 @@ export default function Customers() {
                                 <h3 style={{ marginBottom: '4px' }}>Activity Timeline</h3>
                                 <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>Tracking for {activeCustomer?.phone}</p>
                             </div>
-                            <button className="btn-outline" style={{ border: 'none', padding: '4px' }} onClick={() => setLogsOpen(false)}>✕</button>
+                            <button className="btn-outline" style={{ border: 'none', padding: '4px' }} onClick={() => { setLogsOpen(false); setActivityLogs([]); setLogsPagination({ page: 1, totalPages: 1 }); }}>✕</button>
                         </div>
-                        <div style={{ maxHeight: '450px', overflowY: 'auto', paddingRight: '8px' }}>
+                        <div
+                            onScroll={handleLogsScroll}
+                            style={{ maxHeight: '450px', overflowY: 'auto', paddingRight: '8px' }}
+                        >
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 {activityLogs.map((log, i) => (
                                     <div key={i} style={{ display: 'flex', gap: '16px' }}>
@@ -259,11 +288,13 @@ export default function Customers() {
                                         </div>
                                     </div>
                                 ))}
-                                {activityLogs.length === 0 && <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No logs recorded for this customer.</p>}
+                                {activityLogs.length === 0 && !loadingLogs && <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No logs recorded for this customer.</p>}
+                                {loadingLogs && <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>Loading more logs...</p>}
                             </div>
                         </div>
+
                         <div style={{ marginTop: '32px' }}>
-                            <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setLogsOpen(false)}>Close Timeline</button>
+                            <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setLogsOpen(false); setActivityLogs([]); setLogsPagination({ page: 1, totalPages: 1 }); }}>Close Timeline</button>
                         </div>
                     </div>
                 </div>

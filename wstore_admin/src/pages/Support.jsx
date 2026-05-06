@@ -20,12 +20,12 @@ export default function Support() {
         setLoading(true);
         const branchId = localStorage.getItem('selectedBranchId') || '';
         try {
-            const res = await fetch(`${API_ENDPOINTS.SUPPORT_REQUESTS || API_ENDPOINTS.CUSTOMERS.replace('customers', 'support-requests')}?page=${page}&limit=10&branchId=${branchId}`, {
+            const res = await fetch(`${API_ENDPOINTS.SUPPORT_REQUESTS}?page=${page}&limit=10&branchId=${branchId}`, {
                 headers: getHeaders()
             });
             if (res.status === 401) return navigate('/login');
             const result = await res.json();
-            setRequests(result.data);
+            setRequests(result.data || []);
             setPagination({ page: result.page, totalPages: result.totalPages });
         } catch (e) {
             console.error('Failed to fetch support requests:', e);
@@ -33,6 +33,10 @@ export default function Support() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchSupportRequests();
+    }, []);
 
     const fetchHistory = async (phone) => {
         const res = await fetch(`${API_ENDPOINTS.CUSTOMERS}/${phone}/orders`, {
