@@ -1,0 +1,1 @@
+ /Users/aventusinformatics/Projects/wstore/delivery_app/.dart_tool/flutter_build/3696d5e7d2216b98770555f6b98a1465/native_assets.yaml: 

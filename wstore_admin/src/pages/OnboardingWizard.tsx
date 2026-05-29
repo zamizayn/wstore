@@ -1,0 +1,666 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Building2, Globe, Phone, Key, Store, CheckCircle, ArrowRight, ArrowLeft, Loader2, Sparkles, Upload, Trash2 } from 'lucide-react';
+import { API_ENDPOINTS, getHeaders } from '../apiConfig';
+
+export default function OnboardingWizard() {
+    const [step, setStep] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const navigate = useNavigate();
+
+    const [tenantData, setTenantData] = useState<Record<string, string>>({
+        name: '',
+        contactName: '',
+        contactPhone: '',
+        contactEmail: '',
+        username: '',
+        password: ''
+    });
+
+    const [branchData, setBranchData] = useState({
+        name: '',
+        username: '',
+        password: ''
+    });
+
+    const [createdTenant, setCreatedTenant] = useState(null);
+    const [searchParams] = useSearchParams();
+    const [logoFile, setLogoFile] = useState(null);
+    const [logoPreview, setLogoPreview] = useState('');
+
+    useEffect(() => {
+        const tenantId = searchParams.get('tenantId');
+        const jumpStep = searchParams.get('step');
+        
+        if (tenantId) {
+            // Fetch tenant to populate
+            fetch(`${API_ENDPOINTS.TENANTS}/${tenantId}/registration-status`)
+                .then(res => res.json())
+                .then(data => {
+                    setCreatedTenant(data);
+                    setTenantData(prev => ({
+                        ...prev,
+                        name: data.name,
+                        // We don't have sensitive data in this public endpoint, 
+                        // but we just need the context
+                    }));
+                    if (jumpStep) setStep(parseInt(jumpStep));
+                });
+        }
+    }, [searchParams]);
+
+    const nextStep = () => setStep(prev => prev + 1);
+    const prevStep = () => setStep(prev => prev - 1);
+
+    const handleTenantSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            const isUpdate = !!createdTenant;
+            const url = isUpdate ? `${API_ENDPOINTS.TENANTS}/${createdTenant.id}` : API_ENDPOINTS.TENANTS;
+            const method = isUpdate ? 'PUT' : 'POST';
+
+            const formData = new FormData();
+            Object.keys(tenantData).forEach(key => {
+                if (tenantData[key] !== undefined && tenantData[key] !== null) {
+                    formData.append(key, tenantData[key]);
+                }
+            });
+            if (logoFile) {
+                formData.append('logo', logoFile);
+            }
+
+            const headers = { ...getHeaders() };
+            delete headers['Content-Type'];
+
+            const res = await fetch(url, {
+                method,
+                headers,
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (isUpdate) {
+                    nextStep();
+                } else {
+                    // Initial creation -> Payment
+                    navigate(`/registration-payment?tenantId=${data.id}`);
+                }
+            } else {
+                setError(data.error || 'Failed to process tenant');
+            }
+        } catch (e) {
+            setError('Connection error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleBranchSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            const res = await fetch(API_ENDPOINTS.BRANCHES, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ ...branchData, tenantId: createdTenant.id })
+            });
+            if (res.ok) {
+                alert('Onboarding Complete! You can now login with your credentials.');
+                navigate('/login');
+            } else {
+                const data = await res.json();
+                setError(data.error || 'Failed to create branch');
+            }
+        } catch (e) {
+            setError('Connection error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderStep = () => {
+        switch (step) {
+            case 1:
+                return (
+                    <div className="onboarding-card animate-fade-in">
+                        <div className="wizard-header">
+                            <div className="icon-badge"><Building2 size={32} /></div>
+                            <h2>Welcome! Let's start with your Business</h2>
+                            <p>Tell us a bit about your business to get started.</p>
+                        </div>
+                        <form onSubmit={handleTenantSubmit}>
+                            <div className="input-group">
+                                <label>Business Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Starbucks India"
+                                    value={tenantData.name}
+                                    onChange={e => setTenantData({ ...tenantData, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div className="input-group">
+                                <label>Business Logo / Image (Optional)</label>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '16px',
+                                    padding: '16px',
+                                    background: 'rgba(255, 255, 255, 0.02)',
+                                    border: '1px dashed rgba(255, 255, 255, 0.15)',
+                                    borderRadius: '16px',
+                                    marginTop: '8px'
+                                }}>
+                                    {logoPreview ? (
+                                        <div style={{ position: 'relative', width: '64px', height: '64px' }}>
+                                            <img
+                                                src={logoPreview}
+                                                alt="Preview"
+                                                style={{ width: '64px', height: '64px', borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(255, 255, 255, 0.1)' }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setLogoFile(null);
+                                                    setLogoPreview('');
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: '-6px',
+                                                    right: '-6px',
+                                                    background: '#ef4444',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    borderRadius: '50%',
+                                                    width: '20px',
+                                                    height: '20px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: 'pointer',
+                                                    padding: 0
+                                                }}
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div style={{
+                                            width: '64px',
+                                            height: '64px',
+                                            borderRadius: '12px',
+                                            background: 'rgba(255, 255, 255, 0.05)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'rgba(255, 255, 255, 0.3)'
+                                        }}>
+                                            <Upload size={24} />
+                                        </div>
+                                    )}
+                                    <div style={{ flex: 1 }}>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            id="logo-upload"
+                                            style={{ display: 'none' }}
+                                            onChange={e => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    setLogoFile(file);
+                                                    setLogoPreview(URL.createObjectURL(file));
+                                                }
+                                            }}
+                                        />
+                                        <label
+                                            htmlFor="logo-upload"
+                                            style={{
+                                                background: 'rgba(255, 255, 255, 0.08)',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                padding: '8px 16px',
+                                                borderRadius: '8px',
+                                                color: '#fff',
+                                                fontSize: '13px',
+                                                cursor: 'pointer',
+                                                display: 'inline-block',
+                                                margin: 0,
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            {logoPreview ? 'Change Image' : 'Select Image'}
+                                        </label>
+                                        <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#94a3b8' }}>Supports PNG, JPG, JPEG, WEBP. Max 2MB.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div className="input-group">
+                                    <label>Contact Person Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="John Doe"
+                                        value={tenantData.contactName}
+                                        onChange={e => setTenantData({ ...tenantData, contactName: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label>Contact Phone</label>
+                                    <input
+                                        type="text"
+                                        placeholder="+91..."
+                                        value={tenantData.contactPhone}
+                                        onChange={e => setTenantData({ ...tenantData, contactPhone: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="input-group">
+                                <label>Business Email ID</label>
+                                <input
+                                    type="email"
+                                    placeholder="admin@business.com"
+                                    value={tenantData.contactEmail}
+                                    onChange={e => setTenantData({ ...tenantData, contactEmail: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div style={{ padding: '20px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '16px', marginBottom: '20px' }}>
+                                <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--accent)' }}>Set Admin Credentials</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                    <div className="input-group" style={{ marginBottom: 0 }}>
+                                        <label>Admin Username</label>
+                                        <input
+                                            type="text"
+                                            placeholder="tenant_admin"
+                                            value={tenantData.username}
+                                            onChange={e => setTenantData({ ...tenantData, username: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="input-group" style={{ marginBottom: 0 }}>
+                                        <label>Admin Password</label>
+                                        <input
+                                            type="password"
+                                            placeholder="••••••••"
+                                            autoComplete="new-password"
+                                            value={tenantData.password}
+                                            onChange={e => setTenantData({ ...tenantData, password: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {error && <div className="alert-error">{error}</div>}
+
+                            <button type="submit" className="btn-primary w-full py-4" disabled={loading}>
+                                {loading ? <Loader2 className="animate-spin" /> : <>Continue to Payment <ArrowRight size={18} /></>}
+                            </button>
+                        </form>
+                    </div>
+                );
+            case 2:
+                return (
+                    <div className="onboarding-card animate-fade-in">
+                        <div className="wizard-header">
+                            <div className="icon-badge"><Globe size={32} /></div>
+                            <h2>WhatsApp Meta Integration</h2>
+                            <p>Configure the WhatsApp Business API details for this tenant.</p>
+                        </div>
+                        <form onSubmit={handleTenantSubmit}>
+                            <div className="input-group">
+                                <label>Meta Phone Number ID</label>
+                                <div className="input-with-icon">
+                                    <Phone size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="1092..."
+                                        value={tenantData.phoneNumberId}
+                                        onChange={e => setTenantData({ ...tenantData, phoneNumberId: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="input-group">
+                                <label>Meta System User Access Token</label>
+                                <div className="input-with-icon">
+                                    <Key size={18} />
+                                    <input
+                                        type="password"
+                                        placeholder="EAAl..."
+                                        autoComplete="new-password"
+                                        value={tenantData.whatsappToken}
+                                        onChange={e => setTenantData({ ...tenantData, whatsappToken: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="input-group">
+                                <label>WABA ID (Optional)</label>
+                                <input
+                                    type="text"
+                                    placeholder="Business Account ID"
+                                    value={tenantData.wabaId}
+                                    onChange={e => setTenantData({ ...tenantData, wabaId: e.target.value })}
+                                />
+                            </div>
+
+                            <div style={{ padding: '20px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '16px', marginBottom: '20px' }}>
+                                <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--accent)' }}>Tenant Admin Account</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                    <div className="input-group" style={{ marginBottom: 0 }}>
+                                        <label>Admin Username</label>
+                                        <input
+                                            type="text"
+                                            placeholder="tenant_admin"
+                                            value={tenantData.username}
+                                            onChange={e => setTenantData({ ...tenantData, username: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="input-group" style={{ marginBottom: 0 }}>
+                                        <label>Admin Password</label>
+                                        <input
+                                            type="password"
+                                            placeholder="••••••••"
+                                            autoComplete="new-password"
+                                            value={tenantData.password}
+                                            onChange={e => setTenantData({ ...tenantData, password: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            {error && <div className="alert-error">{error}</div>}
+                            <div className="footer-actions">
+                                <button type="button" className="btn-outline" onClick={prevStep}>Back</button>
+                                <button type="submit" className="btn-primary" disabled={loading}>
+                                    {loading ? <Loader2 className="animate-spin" /> : 'Provision Tenant'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                );
+            case 3:
+                return (
+                    <div className="onboarding-card animate-fade-in">
+                        <div className="wizard-header">
+                            <div className="icon-badge"><Store size={32} /></div>
+                            <h2>Create Your First Branch</h2>
+                            <p>Now let's setup the first hub for <strong>{tenantData.name}</strong>.</p>
+                        </div>
+                        <form onSubmit={handleBranchSubmit}>
+                            <div className="input-group">
+                                <label>Branch Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Mumbai BKC"
+                                    value={branchData.name}
+                                    onChange={e => setBranchData({ ...branchData, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div className="input-group">
+                                    <label>Admin Username</label>
+                                    <input
+                                        type="text"
+                                        placeholder="bkc_admin"
+                                        value={branchData.username}
+                                        onChange={e => setBranchData({ ...branchData, username: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label>Admin Password</label>
+                                    <input
+                                        type="password"
+                                        autoComplete="new-password"
+                                        value={branchData.password}
+                                        onChange={e => setBranchData({ ...branchData, password: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            {error && <div className="alert-error">{error}</div>}
+                            <div className="footer-actions">
+                                <button type="submit" className="btn-primary w-full py-4" disabled={loading}>
+                                    {loading ? <Loader2 className="animate-spin" /> : 'Complete Setup & Launch 🚀'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <div className="onboarding-guide-page premium-dark">
+            <div className="guide-background-blobs">
+                <div className="blob blob-1"></div>
+                <div className="blob blob-2" style={{ background: '#6366f1' }}></div>
+            </div>
+
+            <div className="wizard-viewport-centered">
+                <div className="wizard-progress-minimal">
+                    {[1, 2, 3].map(s => (
+                        <div key={s} className={`step-dot-indicator ${step >= s ? 'active' : ''} ${step > s ? 'completed' : ''}`}>
+                            {step > s ? <CheckCircle size={16} /> : s}
+                        </div>
+                    ))}
+                </div>
+                
+                <div className="wizard-container-compact">
+                    {renderStep()}
+                </div>
+            </div>
+
+            <style>{`
+                .onboarding-guide-page.premium-dark {
+                    background: #05060a;
+                    min-height: 100vh;
+                    position: relative;
+                    overflow-x: hidden;
+                }
+                .wizard-viewport-centered {
+                    position: relative;
+                    z-index: 2;
+                    min-height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                }
+                .wizard-progress-minimal {
+                    display: flex;
+                    gap: 12px;
+                    margin-bottom: 30px;
+                }
+                .step-dot-indicator {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 13px;
+                    color: #94a3b8;
+                    transition: all 0.3s;
+                }
+                .step-dot-indicator.active {
+                    background: #6366f1;
+                    color: white;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+                }
+                .step-dot-indicator.completed {
+                    background: rgba(99, 102, 241, 0.2);
+                    color: #6366f1;
+                    border-color: rgba(99, 102, 241, 0.3);
+                }
+                .wizard-container-compact {
+                    width: 100%;
+                    max-width: 540px;
+                }
+                .onboarding-card {
+                    background: rgba(15, 17, 26, 0.7);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    padding: 48px;
+                    border-radius: 28px;
+                    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.5);
+                }
+                .wizard-header {
+                    text-align: center;
+                    margin-bottom: 40px;
+                }
+                .icon-badge {
+                    width: 70px;
+                    height: 70px;
+                    background: rgba(99, 102, 241, 0.1);
+                    color: #6366f1;
+                    border-radius: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 20px;
+                }
+                .wizard-header h2 {
+                    font-size: 28px;
+                    font-weight: 800;
+                    color: #fff;
+                    margin-bottom: 12px;
+                    letter-spacing: -0.5px;
+                }
+                .wizard-header p {
+                    color: #94a3b8;
+                    font-size: 15px;
+                    line-height: 1.5;
+                }
+                .input-group label {
+                    color: #94a3b8;
+                    font-size: 13px;
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                    display: block;
+                }
+                .input-group input, .input-with-icon input {
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    color: #fff;
+                    border-radius: 12px;
+                    padding: 14px;
+                    width: 100%;
+                    transition: all 0.3s;
+                }
+                .input-group input:focus, .input-with-icon input:focus {
+                    background: rgba(255, 255, 255, 0.08);
+                    border-color: #6366f1;
+                    outline: none;
+                    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+                }
+                .input-with-icon svg {
+                    position: absolute;
+                    left: 14px;
+                    top: 15px;
+                    color: #6366f1;
+                }
+                .input-with-icon input {
+                    padding-left: 44px;
+                }
+                .btn-primary {
+                    background: linear-gradient(135deg, #6366f1, #a855f7);
+                    border: none;
+                    color: #fff;
+                    font-weight: 700;
+                    padding: 16px;
+                    border-radius: 14px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                    box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                }
+                .btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.5);
+                }
+                .btn-outline {
+                    background: transparent;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    color: #94a3b8;
+                    padding: 16px;
+                    border-radius: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                }
+                .btn-outline:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                    color: #fff;
+                }
+                .alert-error {
+                    background: rgba(239, 68, 68, 0.1);
+                    color: #f87171;
+                    padding: 14px;
+                    border-radius: 12px;
+                    font-size: 14px;
+                    border: 1px solid rgba(239, 68, 68, 0.2);
+                    margin-bottom: 20px;
+                }
+                .animate-fade-in {
+                    animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+
+                /* Reuse guide blobs */
+                .guide-background-blobs {
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 1;
+                    pointer-events: none;
+                    overflow: hidden;
+                }
+                .blob {
+                    position: absolute;
+                    border-radius: 50%;
+                    filter: blur(80px);
+                    opacity: 0.15;
+                }
+                .blob-1 {
+                    width: 600px;
+                    height: 600px;
+                    background: #6366f1;
+                    top: -200px;
+                    left: -200px;
+                }
+                .blob-2 {
+                    width: 500px;
+                    height: 500px;
+                    background: #a855f7;
+                    bottom: -150px;
+                    right: -150px;
+                }
+            `}</style>
+        </div>
+    );
+}

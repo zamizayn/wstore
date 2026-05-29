@@ -1,0 +1,12 @@
+*.iml
+.DS_Store
+.idea
+.gradle
+build/
+android/.gradle
+android/app/build
+ios/Pods
+ios/.symlinks
+.metadata
+*.lock
+flutter_export_environment.sh
